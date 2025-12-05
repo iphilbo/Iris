@@ -1,6 +1,6 @@
-# RaiseTracker Development Helper Script
+# Iris - RaiseTracker Feature Development Helper Script
 
-# Common development tasks and shortcuts
+# Common development tasks and shortcuts for the Iris project
 
 param(
     [Parameter(Position = 0)]
@@ -13,8 +13,8 @@ $ProgressPreference = 'SilentlyContinue'
 $ErrorActionPreference = 'Stop'
 
 function Show-Help {
-    Write-Host "RaiseTracker Development Helper" -ForegroundColor Green
-    Write-Host "===============================" -ForegroundColor Green
+    Write-Host "Iris - RaiseTracker Feature Development Helper" -ForegroundColor Green
+    Write-Host "===============================================" -ForegroundColor Green
     Write-Host ""
     Write-Host "Usage: .\dev-helper.ps1 [command]" -ForegroundColor Cyan
     Write-Host ""
@@ -30,7 +30,7 @@ function Show-Help {
 }
 
 function Invoke-Build {
-    Write-Host "Building RaiseTracker..." -ForegroundColor Cyan
+    Write-Host "Building Iris (RaiseTracker feature)..." -ForegroundColor Cyan
 
     # Stop any running instances to prevent file locking issues
     Write-Host "Checking for running instances..." -ForegroundColor Yellow
@@ -74,7 +74,7 @@ function Invoke-Build {
     catch {}
 
     if ($runningProcesses.Count -gt 0) {
-        Write-Host "Found $($runningProcesses.Count) running RaiseTracker process(es), stopping..." -ForegroundColor Yellow
+        Write-Host "Found $($runningProcesses.Count) running Iris process(es), stopping..." -ForegroundColor Yellow
         foreach ($proc in $runningProcesses) {
             try {
                 Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
@@ -88,7 +88,7 @@ function Invoke-Build {
         Remove-Item ".raisetracker.pid" -ErrorAction SilentlyContinue
     }
     else {
-        Write-Host "No running RaiseTracker processes found" -ForegroundColor Gray
+        Write-Host "No running Iris processes found" -ForegroundColor Gray
     }
 
     # Now build
@@ -102,7 +102,7 @@ function Invoke-Build {
 }
 
 function Invoke-Run {
-    Write-Host "Starting RaiseTracker API..." -ForegroundColor Cyan
+    Write-Host "Starting Iris API (RaiseTracker feature)..." -ForegroundColor Cyan
     Write-Host "   Application will be available at:" -ForegroundColor Gray
     Write-Host "   - http://localhost:5253" -ForegroundColor Gray
     Write-Host ""
@@ -183,7 +183,7 @@ function Invoke-DbCheck {
 }
 
 function Invoke-Stop {
-    Write-Host "Stopping RaiseTracker application..." -ForegroundColor Cyan
+    Write-Host "Stopping Iris application..." -ForegroundColor Cyan
 
     # Prefer PID file if present
     $stopped = $false
@@ -223,13 +223,13 @@ function Invoke-Stop {
         Write-Host "Application stopped!" -ForegroundColor Green
     }
     else {
-        Write-Host "No running RaiseTracker process found." -ForegroundColor Gray
+        Write-Host "No running Iris process found." -ForegroundColor Gray
     }
 }
 
 function Invoke-Status {
-    Write-Host "Project Status" -ForegroundColor Cyan
-    Write-Host "==============" -ForegroundColor Cyan
+    Write-Host "Iris Project Status" -ForegroundColor Cyan
+    Write-Host "===================" -ForegroundColor Cyan
 
     # Check .NET version
     $dotnetVersion = dotnet --version

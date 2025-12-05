@@ -64,7 +64,9 @@ async function checkSession() {
 function showLogin() {
     document.getElementById('loginScreen').classList.remove('hidden');
     document.getElementById('appScreen').classList.add('hidden');
-    loadUsers();
+    document.getElementById('loginForm').reset();
+    document.getElementById('loginError').classList.add('hidden');
+    document.getElementById('loginSuccess').classList.add('hidden');
 }
 
 function showApp() {
@@ -107,40 +109,24 @@ function setupEventListeners() {
 
 // User Management
 async function loadUsers() {
-    try {
-        const response = await fetch(`${API_BASE}/users`);
-        const users = await response.json();
-        const userList = document.getElementById('userList');
-        userList.innerHTML = '';
-
-        users.forEach(user => {
-            const button = document.createElement('button');
-            button.className = 'user-button';
-            button.textContent = user.displayName;
-            button.dataset.userId = user.id;
-            button.addEventListener('click', () => selectUser(user.id));
-            userList.appendChild(button);
-        });
-    } catch (error) {
-        console.error('Failed to load users:', error);
-    }
+    // No longer needed - using email login
 }
 
-function selectUser(userId) {
-    document.querySelectorAll('.user-button').forEach(btn => {
-        btn.style.display = 'none';
-    });
-    document.getElementById('passwordForm').classList.remove('hidden');
-    document.getElementById('passwordInput').focus();
-    document.getElementById('passwordInput').dataset.userId = userId;
-}
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
 
-document.getElementById('loginButton').addEventListener('click', async () => {
-    const userId = document.getElementById('passwordInput').dataset.userId;
+    const email = document.getElementById('emailInput').value.trim();
     const password = document.getElementById('passwordInput').value;
 
-    if (!password) {
-        showError('Please enter a password');
+    if (!email || !password) {
+        showError('Please enter both email and password');
+        return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        showError('Please enter a valid email address');
         return;
     }
 
@@ -148,16 +134,19 @@ document.getElementById('loginButton').addEventListener('click', async () => {
         const response = await fetch(`${API_BASE}/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId, password })
+            body: JSON.stringify({ userId: email, password })
         });
 
         if (response.ok) {
             const data = await response.json();
             currentUser = data;
+            document.getElementById('loginForm').reset();
+            document.getElementById('loginError').classList.add('hidden');
+            document.getElementById('loginSuccess').classList.add('hidden');
             showApp();
-            loadInvestors();
+            await loadInvestors();
         } else {
-            showError('Invalid credentials');
+            showError('Invalid email or password');
         }
     } catch (error) {
         console.error('Login failed:', error);
@@ -165,14 +154,48 @@ document.getElementById('loginButton').addEventListener('click', async () => {
     }
 });
 
-document.getElementById('cancelButton').addEventListener('click', () => {
-    document.getElementById('passwordForm').classList.add('hidden');
-    document.getElementById('passwordInput').value = '';
-    document.querySelectorAll('.user-button').forEach(btn => {
-        btn.style.display = 'block';
-    });
-    document.getElementById('loginError').classList.add('hidden');
+document.getElementById('forgotPasswordButton').addEventListener('click', async () => {
+    const email = document.getElementById('emailInput').value.trim();
+
+    if (!email) {
+        showError('Please enter your email address');
+        return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+        showError('Please enter a valid email address');
+        return;
+    }
+
+    try {
+        const response = await fetch(`${API_BASE}/forgot-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email })
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            showSuccess(result.message || 'Password reset email sent. Please check your inbox.');
+        } else {
+            const error = await response.json();
+            showError(error.error || 'Failed to send password reset. Please contact an administrator.');
+        }
+    } catch (error) {
+        console.error('Forgot password failed:', error);
+        showError('Failed to process request. Please try again.');
+    }
 });
+
+function showSuccess(message) {
+    const successDiv = document.getElementById('loginSuccess');
+    const errorDiv = document.getElementById('loginError');
+    successDiv.textContent = message;
+    successDiv.classList.remove('hidden');
+    errorDiv.classList.add('hidden');
+}
 
 async function logout() {
     try {
@@ -186,8 +209,10 @@ async function logout() {
 
 function showError(message) {
     const errorDiv = document.getElementById('loginError');
+    const successDiv = document.getElementById('loginSuccess');
     errorDiv.textContent = message;
     errorDiv.classList.remove('hidden');
+    successDiv.classList.add('hidden');
 }
 
 // Investor Management
@@ -752,10 +777,19 @@ async function editUser(userId) {
 async function handleUserSubmit(e) {
     e.preventDefault();
     const userId = document.getElementById('userId').value;
-    const username = document.getElementById('username').value;
-    const displayName = document.getElementById('displayName').value;
+    const username = document.getElementById('username').value.trim();
+    const displayName = document.getElementById('displayName').value.trim();
     const password = document.getElementById('password').value;
     const isAdmin = document.getElementById('isAdmin').checked;
+
+    // Validate email format
+    if (!editingUserId) {
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(username)) {
+            alert('Please enter a valid email address');
+            return;
+        }
+    }
 
     try {
         if (editingUserId) {

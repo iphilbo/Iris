@@ -1,10 +1,10 @@
 # Project Review - Missing Items and Issues
 
-This project was previously part of a different project (subpathed/submoduled). Based on the migration document from Prometheus, this review identifies what's missing and what needs to be addressed.
+This project is **Iris** with the **RaiseTraker** feature. It was previously part of a different project (subpathed/submoduled). Based on the migration document from Prometheus, this review identifies what's missing and what needs to be addressed.
 
 ## Migration Context
 
-RaiseTracker was extracted from the Prometheus repository where it ran as a sub-application on the `/RaiseTracker` path. The project was designed to work both as:
+The **RaiseTracker** feature (within the **Iris** project) was extracted from the Prometheus repository where it ran as a sub-application on the `/RaiseTracker` path. The project was designed to work both as:
 - **Standalone application** (using `Program.cs`)
 - **Sub-application** (using `RaiseTrackerApp.cs` methods)
 

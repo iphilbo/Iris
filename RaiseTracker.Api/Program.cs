@@ -1,20 +1,21 @@
 using Microsoft.EntityFrameworkCore;
-using RaiseTracker.Api.Data;
-using RaiseTracker.Api.Middleware;
-using RaiseTracker.Api.Models;
-using RaiseTracker.Api.Services;
+using Iris.Data;
+using Iris.Middleware;
+using Iris.Models;
+using Iris.Services;
 using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services
 // Register DbContext
-builder.Services.AddDbContext<RaiseTrackerDbContext>(options =>
+builder.Services.AddDbContext<IrisDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
 // Register storage service (database-backed)
 builder.Services.AddSingleton<IBlobStorageService, DatabaseStorageService>();
 builder.Services.AddSingleton<IAuthService, AuthService>();
+builder.Services.AddSingleton<IEmailService, EmailService>();
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -116,6 +117,53 @@ app.MapPost("/api/login", async (LoginRequest request, IAuthService authService,
     return Results.Ok(new { userId = user.Id, displayName = user.DisplayName, isAdmin = user.IsAdmin });
 });
 
+app.MapPost("/api/forgot-password", async (ForgotPasswordRequest request, IAuthService authService, IBlobStorageService blobStorage, IEmailService emailService) =>
+{
+    try
+    {
+        // Debug: Check if user exists
+        var allUsers = await blobStorage.GetUsersAsync();
+        var normalizedEmail = request.Email.ToLowerInvariant();
+        var foundUser = allUsers.FirstOrDefault(u =>
+            u.Id.Equals(normalizedEmail, StringComparison.OrdinalIgnoreCase) ||
+            (!string.IsNullOrEmpty(u.Username) && u.Username.ToLowerInvariant().Equals(normalizedEmail)));
+
+        if (foundUser == null)
+        {
+            // Return generic message for security, but log for debugging
+            Console.WriteLine($"Password reset requested for email: {request.Email}, but user not found. Available users: {string.Join(", ", allUsers.Select(u => u.Username))}");
+            return Results.Ok(new { message = "If an account with that email exists, a password reset email has been sent." });
+        }
+
+        var newPassword = await authService.ResetPasswordAsync(request.Email);
+
+        if (newPassword == null)
+        {
+            return Results.Ok(new { message = "If an account with that email exists, a password reset email has been sent." });
+        }
+
+        // Send password via email
+        var emailSent = await emailService.SendPasswordResetEmailAsync(request.Email, newPassword);
+
+        if (emailSent)
+        {
+            return Results.Ok(new { message = "A password reset email has been sent to your email address. Please check your inbox." });
+        }
+        else
+        {
+            // Email not configured or failed - return password in response as fallback (not ideal, but functional)
+            Console.WriteLine($"Warning: Email sending failed or not configured. Returning password in response for {request.Email}");
+            return Results.Ok(new { message = $"Email sending is not configured. Your new temporary password is: {newPassword}. Please change it after logging in." });
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error in forgot-password: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        return Results.Problem("An error occurred processing your request.");
+    }
+});
+
 app.MapGet("/api/session", (HttpContext context, IAuthService authService) =>
 {
     var cookie = context.Request.Cookies["AuthSession"];
@@ -154,16 +202,23 @@ app.MapPost("/api/users", async (CreateUserRequest request, IBlobStorageService 
         return Results.Unauthorized();
     }
 
+    // Validate email format
+    var emailRegex = new System.Text.RegularExpressions.Regex(@"^[^\s@]+@[^\s@]+\.[^\s@]+$");
+    if (!emailRegex.IsMatch(request.Username))
+    {
+        return Results.BadRequest(new ErrorResponse { Error = "Username must be a valid email address" });
+    }
+
     var users = await blobStorage.GetUsersAsync();
     if (users.Any(u => u.Username.Equals(request.Username, StringComparison.OrdinalIgnoreCase)))
     {
-        return Results.BadRequest(new ErrorResponse { Error = "Username already exists" });
+        return Results.BadRequest(new ErrorResponse { Error = "Email address already exists" });
     }
 
     var newUser = new User
     {
         Id = Guid.NewGuid().ToString(),
-        Username = request.Username,
+        Username = request.Username.ToLowerInvariant(), // Store email in lowercase
         DisplayName = request.DisplayName,
         PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
         IsAdmin = request.IsAdmin

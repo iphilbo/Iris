@@ -1,8 +1,8 @@
 using System.Security.Claims;
-using RaiseTracker.Api.Models;
-using RaiseTracker.Api.Services;
+using Iris.Models;
+using Iris.Services;
 
-namespace RaiseTracker.Api.Middleware;
+namespace Iris.Middleware;
 
 public class SessionMiddleware
 {
@@ -20,10 +20,11 @@ public class SessionMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // Skip auth for login endpoints and static files
+        // Skip auth for login endpoints, password reset, and static files
         var path = context.Request.Path.Value?.ToLower() ?? "";
         if (path.StartsWith("/api/users") && context.Request.Method == "GET" ||
             path.StartsWith("/api/login") ||
+            path.StartsWith("/api/forgot-password") ||
             path == "/" || path.StartsWith("/raise-tracker.html") || path.StartsWith("/css/") || path.StartsWith("/js/"))
         {
             await _next(context);

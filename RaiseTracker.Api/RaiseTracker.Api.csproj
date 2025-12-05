@@ -4,6 +4,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Iris</RootNamespace>
+    <Description>RaiseTracker feature API - Part of the Iris project. Tracks Series A investors and related tasks.</Description>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,6 +22,8 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+    <PackageReference Include="Azure.Communication.Email" Version="1.0.1" />
+    <PackageReference Include="Azure.Core" Version="1.47.3" />
   </ItemGroup>
 
 </Project>

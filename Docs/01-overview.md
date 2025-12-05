@@ -1,6 +1,6 @@
-# Series A Investor Tracker – Overview
+# Iris - RaiseTracker Feature – Overview
 
-This document describes the design for:
+This document describes the design for the **RaiseTracker** feature within the **Iris** project:
 - File-based storage using many JSON files + an index
 - Simple 7-user password authentication
 - 7-day sliding session cookies
@@ -12,6 +12,7 @@ Intended to be used as a reference/spec in Cursor while you implement.
 
 - Small internal web app (7 users).
 - Purpose: Track investors and related tasks for Series A.
+- Project: **Iris** - Feature: **RaiseTracker**
 - Front-end: Single HTML/JS page (existing "vibe-coded" page, refactored).
 - Backend: Thin HTTP API (e.g., .NET 8 minimal API, but framework-agnostic).
 - Storage: Azure Blob Storage with JSON files (no database).

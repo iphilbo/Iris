@@ -1,11 +1,11 @@
 using Microsoft.EntityFrameworkCore;
-using RaiseTracker.Api.Models;
+using Iris.Models;
 
-namespace RaiseTracker.Api.Data;
+namespace Iris.Data;
 
-public class RaiseTrackerDbContext : DbContext
+public class IrisDbContext : DbContext
 {
-    public RaiseTrackerDbContext(DbContextOptions<RaiseTrackerDbContext> options)
+    public IrisDbContext(DbContextOptions<IrisDbContext> options)
         : base(options)
     {
     }

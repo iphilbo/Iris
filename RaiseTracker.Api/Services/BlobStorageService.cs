@@ -3,9 +3,9 @@ using System.Text.Json;
 using Azure;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
-using RaiseTracker.Api.Models;
+using Iris.Models;
 
-namespace RaiseTracker.Api.Services;
+namespace Iris.Services;
 
 public class BlobStorageService : IBlobStorageService
 {

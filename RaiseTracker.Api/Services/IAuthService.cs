@@ -1,6 +1,6 @@
-using RaiseTracker.Api.Models;
+using Iris.Models;
 
-namespace RaiseTracker.Api.Services;
+namespace Iris.Services;
 
 public interface IAuthService
 {
@@ -8,4 +8,5 @@ public interface IAuthService
     string CreateSessionToken(Session session);
     Session? ValidateSessionToken(string token);
     Task<List<UserSummary>> GetUserSummariesAsync();
+    Task<string?> ResetPasswordAsync(string email);
 }

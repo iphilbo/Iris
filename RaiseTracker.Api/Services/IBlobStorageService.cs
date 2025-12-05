@@ -1,7 +1,7 @@
 using Azure;
-using RaiseTracker.Api.Models;
+using Iris.Models;
 
-namespace RaiseTracker.Api.Services;
+namespace Iris.Services;
 
 public interface IBlobStorageService
 {

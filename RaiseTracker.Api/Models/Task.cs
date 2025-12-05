@@ -1,4 +1,4 @@
-namespace RaiseTracker.Api.Models;
+namespace Iris.Models;
 
 public class InvestorTask
 {

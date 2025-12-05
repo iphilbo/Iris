@@ -1,31 +1,31 @@
 using Microsoft.EntityFrameworkCore;
-using RaiseTracker.Api.Data;
-using RaiseTracker.Api.Middleware;
-using RaiseTracker.Api.Models;
-using RaiseTracker.Api.Services;
+using Iris.Data;
+using Iris.Middleware;
+using Iris.Models;
+using Iris.Services;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 
-namespace RaiseTracker.Api;
+namespace Iris;
 
 /// <summary>
-/// Standalone RaiseTracker application configuration for use as a sub-application.
-/// This allows RaiseTracker to run on /RaiseTracker subpath with no code overlap.
+/// Standalone Iris application configuration for use as a sub-application.
+/// This allows Iris to run on /RaiseTracker subpath with no code overlap.
 /// </summary>
-public static class RaiseTrackerApp
+public static class IrisApp
 {
     /// <summary>
-    /// Configures RaiseTracker as a standalone sub-application on the specified path base.
+    /// Configures Iris as a standalone sub-application on the specified path base.
     /// </summary>
-    public static void ConfigureRaiseTracker(WebApplicationBuilder builder)
+    public static void ConfigureIris(WebApplicationBuilder builder)
     {
         // Register DbContext
         var dbConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
         if (!string.IsNullOrWhiteSpace(dbConnectionString))
         {
-            builder.Services.AddDbContext<RaiseTrackerDbContext>(options =>
+            builder.Services.AddDbContext<IrisDbContext>(options =>
                 options.UseSqlServer(dbConnectionString));
         }
 
@@ -52,23 +52,23 @@ public static class RaiseTrackerApp
             });
         });
 
-        // Configure static files for RaiseTracker's wwwroot
+        // Configure static files for Iris's wwwroot
         // This will be served from RaiseTracker.Api/wwwroot when path base is /RaiseTracker
         builder.WebHost.UseStaticWebAssets();
     }
 
     /// <summary>
-    /// Configures the RaiseTracker middleware pipeline and routes.
+    /// Configures the Iris middleware pipeline and routes.
     /// Call this after app.Build() with UsePathBase("/RaiseTracker") set.
     /// </summary>
-    public static async Task SetupRaiseTrackerPipeline(IApplicationBuilder app)
+    public static async Task SetupIrisPipeline(IApplicationBuilder app)
     {
         // Check if services are configured
         var serviceProvider = app.ApplicationServices;
         var configuration = serviceProvider.GetRequiredService<IConfiguration>();
         var connectionString = configuration.GetConnectionString("AzureStorage");
 
-        // Configure static files to serve from RaiseTracker's wwwroot
+        // Configure static files to serve from Iris's wwwroot
         // Static web assets from referenced projects are automatically included in publish output
         var env = serviceProvider.GetRequiredService<IWebHostEnvironment>();
         IFileProvider fileProvider;
@@ -86,7 +86,7 @@ public static class RaiseTrackerApp
         possiblePaths.Add(Path.GetFullPath(projectPath));
 
         // 3. Production: in publish output, static web assets are typically in _content/{ProjectName}/
-        var assemblyName = typeof(RaiseTrackerApp).Assembly.GetName().Name ?? "RaiseTracker.Api";
+        var assemblyName = typeof(IrisApp).Assembly.GetName().Name ?? "RaiseTracker.Api";
         var contentPath = Path.Combine(currentDir, "_content", assemblyName, "wwwroot");
         possiblePaths.Add(Path.GetFullPath(contentPath));
 
@@ -112,8 +112,8 @@ public static class RaiseTrackerApp
         else
         {
             // Last resort: try embedded resources (requires files to be embedded)
-            var raiseTrackerAssembly = typeof(RaiseTrackerApp).Assembly;
-            fileProvider = new ManifestEmbeddedFileProvider(raiseTrackerAssembly, "wwwroot");
+            var irisAssembly = typeof(IrisApp).Assembly;
+            fileProvider = new ManifestEmbeddedFileProvider(irisAssembly, "wwwroot");
         }
 
         var defaultFilesOptions = new DefaultFilesOptions
@@ -149,7 +149,7 @@ public static class RaiseTrackerApp
         app.UseRateLimiting();
         app.UseSessionMiddleware();
 
-        // Static files for frontend are already configured above with RaiseTracker's wwwroot
+        // Static files for frontend are already configured above with Iris's wwwroot
 
         // Enable routing and endpoints
         app.UseRouting();
@@ -242,16 +242,23 @@ public static class RaiseTrackerApp
                     return Results.Unauthorized();
                 }
 
+                // Validate email format
+                var emailRegex = new System.Text.RegularExpressions.Regex(@"^[^\s@]+@[^\s@]+\.[^\s@]+$");
+                if (!emailRegex.IsMatch(request.Username))
+                {
+                    return Results.BadRequest(new ErrorResponse { Error = "Username must be a valid email address" });
+                }
+
                 var users = await blobStorage.GetUsersAsync();
                 if (users.Any(u => u.Username.Equals(request.Username, StringComparison.OrdinalIgnoreCase)))
                 {
-                    return Results.BadRequest(new ErrorResponse { Error = "Username already exists" });
+                    return Results.BadRequest(new ErrorResponse { Error = "Email address already exists" });
                 }
 
                 var newUser = new User
                 {
                     Id = Guid.NewGuid().ToString(),
-                    Username = request.Username,
+                    Username = request.Username.ToLowerInvariant(), // Store email in lowercase
                     DisplayName = request.DisplayName,
                     PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                     IsAdmin = request.IsAdmin

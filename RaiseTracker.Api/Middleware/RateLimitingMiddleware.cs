@@ -1,6 +1,6 @@
-using RaiseTracker.Api.Models;
+using Iris.Models;
 
-namespace RaiseTracker.Api.Middleware;
+namespace Iris.Middleware;
 
 public class RateLimitingMiddleware
 {

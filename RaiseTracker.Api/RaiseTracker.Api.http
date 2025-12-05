@@ -1,6 +1,6 @@
-@RaiseTracker.Api_HostAddress = http://localhost:5253
+@Iris_HostAddress = http://localhost:5253
 
-GET {{RaiseTracker.Api_HostAddress}}/weatherforecast/
+GET {{Iris_HostAddress}}/weatherforecast/
 Accept: application/json
 
 ###

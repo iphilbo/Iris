@@ -1,9 +1,14 @@
-namespace RaiseTracker.Api.Models;
+namespace Iris.Models;
 
 public class LoginRequest
 {
     public string UserId { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
+}
+
+public class ForgotPasswordRequest
+{
+    public string Email { get; set; } = string.Empty;
 }
 
 public class CreateInvestorRequest

@@ -1,6 +1,8 @@
-# Series A Investor Tracker
+# Iris - RaiseTracker Feature
 
 A simple web application for tracking Series A investors and related tasks. Built with .NET 8 minimal API backend and vanilla HTML/JS/CSS frontend.
+
+**Iris** is the project name. **RaiseTracker** is a feature within Iris for tracking investors and related tasks.
 
 ## Features
 
@@ -63,9 +65,9 @@ A simple web application for tracking Series A investors and related tasks. Buil
 ## Project Structure
 
 ```
-RaiseTracker/
+Iris/
 ├── Docs/                    # Documentation
-├── RaiseTracker.Api/        # Backend API
+├── RaiseTracker.Api/        # Backend API (RaiseTraker feature)
 │   ├── Models/              # Data models
 │   ├── Services/            # Business logic services
 │   ├── Middleware/          # Custom middleware

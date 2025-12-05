@@ -1,9 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using RaiseTracker.Api.Data;
-using RaiseTracker.Api.Models;
+using Iris.Data;
+using Iris.Models;
 
-namespace RaiseTracker.Api.Services;
+namespace Iris.Services;
 
 public class DatabaseStorageService : IBlobStorageService
 {
@@ -14,16 +14,16 @@ public class DatabaseStorageService : IBlobStorageService
         _serviceScopeFactory = serviceScopeFactory;
     }
 
-    private RaiseTrackerDbContext CreateContext()
+    private IrisDbContext CreateContext()
     {
         var scope = _serviceScopeFactory.CreateScope();
-        return scope.ServiceProvider.GetRequiredService<RaiseTrackerDbContext>();
+        return scope.ServiceProvider.GetRequiredService<IrisDbContext>();
     }
 
     public async Task InitializeAsync()
     {
         using var scope = _serviceScopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<RaiseTrackerDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<IrisDbContext>();
 
         // Ensure database is created
         await context.Database.EnsureCreatedAsync();
@@ -48,7 +48,7 @@ public class DatabaseStorageService : IBlobStorageService
     public async Task<List<InvestorSummary>> GetInvestorIndexAsync()
     {
         using var scope = _serviceScopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<RaiseTrackerDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<IrisDbContext>();
 
         return await context.Investors
             .Select(i => new InvestorSummary
@@ -68,7 +68,7 @@ public class DatabaseStorageService : IBlobStorageService
     public async Task<Investor?> GetInvestorAsync(string id)
     {
         using var scope = _serviceScopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<RaiseTrackerDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<IrisDbContext>();
 
         var investor = await context.Investors
             .Include(i => i.Tasks)
@@ -80,7 +80,7 @@ public class DatabaseStorageService : IBlobStorageService
     public async Task<(bool Success, string? ETag)> SaveInvestorAsync(Investor investor, string? ifMatchETag = null)
     {
         using var scope = _serviceScopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<RaiseTrackerDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<IrisDbContext>();
 
         try
         {
@@ -181,7 +181,7 @@ public class DatabaseStorageService : IBlobStorageService
     public async Task<bool> DeleteInvestorAsync(string id)
     {
         using var scope = _serviceScopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<RaiseTrackerDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<IrisDbContext>();
 
         var investor = await context.Investors
             .Include(i => i.Tasks)
@@ -209,7 +209,7 @@ public class DatabaseStorageService : IBlobStorageService
     public async Task<List<User>> GetUsersAsync()
     {
         using var scope = _serviceScopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<RaiseTrackerDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<IrisDbContext>();
 
         return await context.Users.ToListAsync();
     }
@@ -217,19 +217,16 @@ public class DatabaseStorageService : IBlobStorageService
     public async Task SaveUsersAsync(List<User> users)
     {
         using var scope = _serviceScopeFactory.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<RaiseTrackerDbContext>();
+        var context = scope.ServiceProvider.GetRequiredService<IrisDbContext>();
 
-        // Get existing users
+        // Get existing users from database
         var existingUsers = await context.Users.ToListAsync();
         var existingUserIds = existingUsers.Select(u => u.Id).ToHashSet();
         var newUserIds = users.Select(u => u.Id).ToHashSet();
 
-        // Remove users that are no longer in the list
-        var usersToRemove = existingUsers.Where(u => !newUserIds.Contains(u.Id)).ToList();
-        foreach (var user in usersToRemove)
-        {
-            context.Users.Remove(user);
-        }
+        // Only remove users if explicitly not in the new list (for full replacement scenarios)
+        // But be careful - we don't want to delete users accidentally
+        // For now, we'll only update/add, not remove (safer approach)
 
         // Add or update users
         foreach (var user in users)
@@ -237,10 +234,12 @@ public class DatabaseStorageService : IBlobStorageService
             var existing = existingUsers.FirstOrDefault(u => u.Id == user.Id);
             if (existing == null)
             {
+                // New user - add it
                 context.Users.Add(user);
             }
             else
             {
+                // Update existing user
                 existing.Username = user.Username;
                 existing.DisplayName = user.DisplayName;
                 existing.PasswordHash = user.PasswordHash;
