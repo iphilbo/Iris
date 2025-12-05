@@ -1,0 +1,470 @@
+Thought for 9s
+# Series A Investor Tracker – Auth + Storage Design
+
+This document describes the design for:
+- File-based storage using many JSON files + an index
+- Simple 7-user password authentication
+- 7-day sliding session cookies
+- Minimal REST API to support the HTML front-end
+
+Intended to be used as a reference/spec in Cursor while you implement.
+
+---
+
+## 1. System overview
+
+- Small internal web app (7 users).
+- Purpose: Track investors and related tasks for Series A.
+- Front-end: Single HTML/JS page (existing “vibe-coded” page, refactored).
+- Backend: Thin HTTP API (e.g., .NET 8 minimal API, but framework-agnostic).
+- Storage: Azure Blob Storage with JSON files (no database).
+- Auth: 
+  - User picks their name and enters a per-user password.
+  - Passwords stored only on server as hashes.
+  - On success, a session cookie is issued with 7-day sliding expiry.
+- Hosting: Azure App Service (HTTPs only).
+
+---
+
+## 2. Data model
+
+### 2.1 Investor
+
+Represents one investor row in the UI.
+
+Fields:
+
+- `id` (string; GUID or stable ID)
+- `name` (string)
+- `mainContact` (string)
+- `contactEmail` (string)
+- `contactPhone` (string)
+- `category` (string; e.g. `"existing" | "known" | "new"`)
+- `stage` (string; e.g. `"target" | "contacted" | "NDA" | "due_diligence" | "soft_commit" | "commit" | "closed" | "dead"`)
+- `commitAmount` (number; e.g. decimal stored as number)
+- `notes` (string)
+- `tasks` (array of `Task`)
+- Audit-ish fields (optional but recommended):
+  - `createdBy` (string; userId)
+  - `createdAt` (ISO datetime string)
+  - `updatedBy` (string; userId)
+  - `updatedAt` (ISO datetime string)
+
+### 2.2 Task
+
+Represents per-investor to-dos.
+
+Fields:
+
+- `id` (string; GUID or stable ID)
+- `investorId` (string; FK to investor)
+- `description` (string) – the task description
+- `dueDate` (string; `YYYY-MM-DD`)
+- `done` (boolean)
+- Optional:
+  - `createdAt`, `updatedAt` (ISO datetime strings)
+
+Tasks are nested inside the investor in JSON, but the `investorId` is still stored for clarity.
+
+---
+
+## 3. Storage layout (Azure Blob, many JSON files)
+
+Use a single blob container, e.g. `seriesa-data`.
+
+Recommended structure:
+
+- `index.json`  
+  - Lightweight list of investors for quick loading.
+- `investors/{investorId}.json`  
+  - Full investor object including tasks.
+- `users.json`  
+  - Auth users and password hashes (never exposed to clients).
+
+### 3.1 `index.json` structure
+
+Array of investor summaries:
+
+```json
+[
+  {
+    "id": "inv-123",
+    "name": "Big VC Fund",
+    "stage": "NDA",
+    "category": "existing",
+    "commitAmount": 500000,
+    "updatedAt": "2025-12-03T15:30:00Z"
+  }
+]
+
+
+This file is read on initial page load to build the main investor list.
+
+3.2 investors/{id}.json structure
+
+Full investor record:
+
+{
+  "id": "inv-123",
+  "name": "Big VC Fund",
+  "mainContact": "Jane Smith",
+  "contactEmail": "jane@example.com",
+  "contactPhone": "+1-555-123-4567",
+  "category": "existing",
+  "stage": "NDA",
+  "commitAmount": 500000,
+  "notes": "Loves data-driven pitches.",
+  "createdBy": "user-1",
+  "createdAt": "2025-12-01T10:00:00Z",
+  "updatedBy": "user-2",
+  "updatedAt": "2025-12-03T15:30:00Z",
+  "tasks": [
+    {
+      "id": "task-1",
+      "investorId": "inv-123",
+      "description": "Send revised deck",
+      "dueDate": "2025-12-10",
+      "done": false,
+      "createdAt": "2025-12-03T12:00:00Z",
+      "updatedAt": "2025-12-03T12:00:00Z"
+    }
+  ]
+}
+
+3.3 users.json structure
+
+Server-only file; never served to browser.
+
+[
+  {
+    "id": "user-1",
+    "username": "alice",
+    "displayName": "Alice",
+    "passwordHash": "<hash-of-password>",
+    "isAdmin": true
+  },
+  {
+    "id": "user-2",
+    "username": "bob",
+    "displayName": "Bob",
+    "passwordHash": "<hash-of-password>",
+    "isAdmin": false
+  }
+]
+
+
+Notes:
+
+passwordHash should use a standard password hashing algorithm (e.g., bcrypt/PBKDF2/argon2) via whichever library the backend framework uses.
+
+Plaintext passwords never live in code or config; only the hashes.
+
+4. Authentication and sessions
+4.1 Login UX
+
+User visits /.
+
+If no valid session cookie:
+
+Show a login screen with a list of user display names loaded from the backend:
+
+e.g., “Alice”, “Bob”, “Carol”.
+
+User clicks their name, sees a password field, enters their password, and submits.
+
+4.2 Login request
+
+Frontend sends:
+
+userId (or username)
+
+password (plaintext, over HTTPS)
+
+to POST /api/login.
+
+4.3 Login handling (backend)
+
+Backend steps:
+
+Load users.json and find matching user by userId or username.
+
+Hash the supplied password with the same algorithm and parameters used to create passwordHash.
+
+Compare computed hash with stored passwordHash.
+
+If match:
+
+Create a session object:
+
+userId
+
+issuedAt (UTC)
+
+expiresAt = issuedAt + 7 days
+
+Serialize and sign it (e.g., JWT or opaque token with HMAC).
+
+Set it as an HTTP-only, Secure cookie (e.g., AuthSession).
+
+If not match:
+
+Return HTTP 401/403 with generic error message (“Invalid credentials”).
+
+4.4 Session validation and sliding expiry
+
+On each authenticated request:
+
+Check for the AuthSession cookie.
+
+Validate the signature and parse the payload.
+
+If invalid or expired:
+
+Treat request as unauthenticated (401).
+
+If valid:
+
+Attach userId (and maybe displayName, isAdmin) to the request context.
+
+Apply sliding expiry:
+
+If expiresAt - now is below some threshold (e.g., < 2 days), issue a new cookie with now + 7 days.
+
+Result: As long as users are actively using the app, their session keeps extending. If they stop using it or clear cookies, they log in again.
+
+5. Authorization
+
+Baseline for now:
+
+All authenticated users have full read/write access to investors and tasks.
+
+isAdmin is present in users.json for future use (e.g., user management, bulk operations).
+
+Later, if needed:
+
+Restrict certain endpoints (e.g., user management) to isAdmin == true.
+
+Add owner semantics to investors.
+
+6. Rate limiting and safety
+
+Even with 7 users, add minimal protections:
+
+6.1 Login rate limiting
+
+Per userId and/or per IP:
+
+Limit login attempts:
+
+e.g., max 5 failed attempts in 15 minutes.
+
+On lockout:
+
+Return 429 or 403 with a generic message.
+
+Optionally log that the user is temporarily locked.
+
+Implementation can be:
+
+Simple in-memory dictionary keyed by userId + IP with timestamps and counters.
+
+(If scaling later, migrate to Redis or similar.)
+
+6.2 Logging
+
+Log:
+
+Successful logins (userId, timestamp, IP).
+
+Failed logins (userId, timestamp, IP) – without logging the password.
+
+Create/update/delete of investors and tasks (who did what, when).
+
+6.3 HTTPS only
+
+Enforce HTTPS in App Service configuration and/or middleware.
+
+Set cookie with Secure and HttpOnly flags.
+
+7. API surface (high level)
+7.1 Auth endpoints
+
+GET /api/users
+
+Auth: none (or simple) for the login page.
+
+Returns: list of [{ id, displayName }] for login UI.
+
+Must not return password hashes.
+
+POST /api/login
+
+Body: { "userId": "user-1", "password": "…" }
+
+On success: sets AuthSession cookie; returns 200.
+
+On failure: 401/403.
+
+POST /api/logout (optional)
+
+Clears the cookie or sets it expired.
+
+7.2 Investor endpoints
+
+Require valid AuthSession:
+
+GET /api/investors
+
+Returns investor index (from index.json).
+
+Used to populate the main table.
+
+GET /api/investors/{id}
+
+Returns full investor (from investors/{id}.json).
+
+POST /api/investors
+
+Creates a new investor.
+
+Backend:
+
+Generates id.
+
+Sets createdBy, createdAt.
+
+Writes investors/{id}.json.
+
+Updates index.json.
+
+PUT /api/investors/{id}
+
+Updates existing investor:
+
+Read current file (with ETag if using Blob concurrency).
+
+Apply changes.
+
+Set updatedBy, updatedAt.
+
+Save back and update index.json.
+
+DELETE /api/investors/{id} (optional)
+
+Deletes investor file and removes from index.
+
+7.3 Task endpoints
+
+Tasks live inside the investor JSON file; API endpoints conceptually:
+
+POST /api/investors/{id}/tasks
+
+Add new task to that investor.
+
+Regenerates investor file with updated tasks.
+
+PUT /api/investors/{id}/tasks/{taskId}
+
+Update a task (description, dueDate, done).
+
+Save investor file.
+
+DELETE /api/investors/{id}/tasks/{taskId}
+
+Remove the task from the tasks array; save investor file.
+
+Internally, the server reads investors/{id}.json, modifies the tasks list, and writes back.
+
+8. Blob access and concurrency
+
+Use Azure Blob Storage with:
+
+Container: seriesa-data
+
+Files:
+
+index.json
+
+investors/{id}.json
+
+users.json (server-only; not read from client).
+
+8.1 Permissions
+
+Storage account: no public/container access.
+
+Backend uses managed identity or connection string to access blobs.
+
+Front-end never talks directly to blob; only via the backend API.
+
+8.2 Concurrency (ETags)
+
+For index.json and each investors/{id}.json:
+
+On read, capture the blob’s ETag.
+
+On write, include ETag in the conditional write:
+
+“If-Match” ETag.
+
+If blob changed since read:
+
+Write fails with a precondition error.
+
+Backend returns a conflict to the client.
+
+Front-end can prompt “Data changed, please reload.”
+
+This keeps you from silently stomping on someone else’s changes, even if rare.
+
+9. Front-end behavior (brief)
+
+On load:
+
+Check if the session cookie is present and valid (via an /api/session check or by attempting GET /api/investors).
+
+If unauthorized → show login screen.
+
+If authorized → load GET /api/investors and render the table.
+
+Login:
+
+Call GET /api/users to list names.
+
+On name selection + password entry, call POST /api/login.
+
+On success → reload main app state.
+
+Investor actions:
+
+Add/edit investor via a form at top.
+
+Task management via per-investor sections (under each row).
+
+Periodically:
+
+Handle 401 errors centrally: if any API call returns 401, redirect back to login.
+
+10. Implementation notes for Cursor
+
+When you move this into Cursor:
+
+Start by implementing:
+
+users.json reading/writing and the login flow (hashing + cookie).
+
+Then the investor index + per-investor file handling (without worrying about ETags initially).
+
+Add ETag-based concurrency once basic CRUD works.
+
+Use this document as context so Cursor understands:
+
+Auth model
+
+Storage layout
+
+Expected JSON shapes
+
+Session behavior (7-day sliding expiry)
+
+You can paste sections of this doc into Cursor prompts as needed (“Implement the /api/login endpoint following this spec,” etc.).

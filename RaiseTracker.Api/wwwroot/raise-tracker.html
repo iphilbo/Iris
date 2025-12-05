@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Series A Investor Tracker</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+
+<body>
+    <!-- Login Screen -->
+    <div id="loginScreen" class="screen">
+        <div class="login-container">
+            <h1>Series A Investor Tracker</h1>
+            <div id="userList" class="user-list"></div>
+            <div id="passwordForm" class="password-form hidden">
+                <input type="password" id="passwordInput" placeholder="Enter password" autocomplete="off">
+                <button id="loginButton">Login</button>
+                <button id="cancelButton">Cancel</button>
+            </div>
+            <div id="loginError" class="error hidden"></div>
+        </div>
+    </div>
+
+    <!-- Main App Screen -->
+    <div id="appScreen" class="screen hidden">
+        <header>
+            <h1>Series A Investor Tracker</h1>
+            <div class="header-controls">
+                <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
+                    <span id="themeIcon">🌙</span>
+                </button>
+                <span id="userDisplay"></span>
+                <button id="addInvestorButton" class="btn-header">Add Investor</button>
+                <button id="manageUsersButton" class="btn-header hidden">Manage Users</button>
+                <button id="logoutButton">Logout</button>
+            </div>
+        </header>
+
+        <main>
+            <div class="investors-container">
+                <!-- Filter and Sort Bar -->
+                <div class="filter-sort-bar">
+                    <div class="filter-row">
+                        <div class="filter-group">
+                            <label>Category</label>
+                            <select id="filterCategory" onchange="applyFilters()">
+                                <option value="">All</option>
+                                <option value="existing">Existing</option>
+                                <option value="known">Known</option>
+                                <option value="new">New</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Stage</label>
+                            <select id="filterStage" onchange="applyFilters()">
+                                <option value="">All</option>
+                                <option value="target">Target</option>
+                                <option value="contacted">Contacted</option>
+                                <option value="NDA">NDA</option>
+                                <option value="due_diligence">Due Diligence</option>
+                                <option value="soft_commit">Soft Commit</option>
+                                <option value="commit">Commit</option>
+                                <option value="closed">Closed</option>
+                                <option value="dead">Dead</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Status</label>
+                            <select id="filterStatus" onchange="applyFilters()">
+                                <option value="">All</option>
+                                <option value="Active">Active</option>
+                                <option value="Lost: code 1">Lost: code 1</option>
+                                <option value="Lost: Code 2">Lost: Code 2</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Open Tasks</label>
+                            <select id="filterOpenTasks" onchange="applyFilters()">
+                                <option value="">All</option>
+                                <option value="yes">Has Open Tasks</option>
+                                <option value="no">No Open Tasks</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
+                            <label>Sort by</label>
+                            <select id="sortSelect" onchange="sortBySelect()">
+                                <option value="">None</option>
+                                <option value="name-desc">Name</option>
+                                <option value="category-desc">Category</option>
+                                <option value="stage-desc">Stage</option>
+                                <option value="status-desc">Status</option>
+                                <option value="commitAmount-desc">Amount</option>
+                                <option value="updatedAt-desc">Updated</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div id="investorsList" class="investors-list"></div>
+            </div>
+        </main>
+
+        <!-- Modal for Add/Edit Investor -->
+        <div id="investorModal" class="modal hidden">
+            <div class="modal-overlay" id="modalOverlay"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="modalTitle">Add New Investor</h2>
+                    <button class="modal-close" id="modalClose" aria-label="Close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <form id="investorForm">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="name">Name *</label>
+                                <input type="text" id="name" required>
+                            </div>
+                            <div class="form-group">
+                                <label for="category">Category *</label>
+                                <select id="category" required>
+                                    <option value="">Select...</option>
+                                    <option value="existing">Existing</option>
+                                    <option value="known">Known</option>
+                                    <option value="new">New</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="stage">Stage *</label>
+                                <select id="stage" required>
+                                    <option value="">Select...</option>
+                                    <option value="target">Target</option>
+                                    <option value="contacted">Contacted</option>
+                                    <option value="NDA">NDA</option>
+                                    <option value="due_diligence">Due Diligence</option>
+                                    <option value="soft_commit">Soft Commit</option>
+                                    <option value="commit">Commit</option>
+                                    <option value="closed">Closed</option>
+                                    <option value="dead">Dead</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="status">Status *</label>
+                                <select id="status" required>
+                                    <option value="Active">Active</option>
+                                    <option value="Lost: code 1">Lost: code 1</option>
+                                    <option value="Lost: Code 2">Lost: Code 2</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="mainContact">Main Contact</label>
+                                <input type="text" id="mainContact">
+                            </div>
+                            <div class="form-group">
+                                <label for="contactEmail">Email</label>
+                                <input type="email" id="contactEmail">
+                            </div>
+                            <div class="form-group">
+                                <label for="contactPhone">Phone</label>
+                                <input type="tel" id="contactPhone">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="commitAmount">Commit Amount</label>
+                                <input type="number" id="commitAmount" step="0.01">
+                            </div>
+                            <div class="form-group full-width">
+                                <label for="notes">Notes</label>
+                                <textarea id="notes" rows="2"></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-actions">
+                            <button type="submit" id="submitButton">Add Investor</button>
+                            <button type="button" id="cancelEditButton" class="hidden">Cancel Edit</button>
+                            <button type="button" id="cancelModalButton">Cancel</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Add Task -->
+    <div id="taskModal" class="modal hidden">
+        <div class="modal-overlay" id="taskModalOverlay"></div>
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2>Add Task</h2>
+                <button class="modal-close" id="taskModalClose" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="taskForm">
+                    <div class="form-group">
+                        <label for="taskDescription">Description *</label>
+                        <input type="text" id="taskDescription" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="taskDueDate">Due Date</label>
+                        <input type="date" id="taskDueDate">
+                    </div>
+                    <div class="modal-actions">
+                        <button type="submit" id="submitTaskButton">Add Task</button>
+                        <button type="button" id="cancelTaskButton">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for User Management -->
+    <div id="userModal" class="modal hidden">
+        <div class="modal-overlay" id="userModalOverlay"></div>
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="userModalTitle">Manage Users</h2>
+                <button class="modal-close" id="userModalClose" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="users-section">
+                    <div class="section-header">
+                        <h3>Users</h3>
+                        <button id="openAddUserModal" class="icon-btn" title="Add User" aria-label="Add User">➕</button>
+                    </div>
+                    <div id="usersList" class="users-list"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal for Add/Edit User -->
+    <div id="addUserModal" class="modal hidden">
+        <div class="modal-overlay" id="addUserModalOverlay"></div>
+        <div class="modal-content modal-small">
+            <div class="modal-header">
+                <h2 id="addUserModalTitle">Add New User</h2>
+                <button class="modal-close" id="addUserModalClose" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="userForm">
+                    <input type="hidden" id="userId">
+                    <div class="form-group">
+                        <label for="username">Username *</label>
+                        <input type="text" id="username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="displayName">Display Name *</label>
+                        <input type="text" id="displayName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">Password <span id="passwordRequired">*</span></label>
+                        <input type="password" id="password">
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <input type="checkbox" id="isAdmin">
+                            Admin
+                        </label>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="submit" id="submitUserButton">Add User</button>
+                        <button type="button" id="cancelUserButton">Cancel</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+
+</html>
