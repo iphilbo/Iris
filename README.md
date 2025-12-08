@@ -123,12 +123,13 @@ The application uses Azure Blob Storage with the following structure:
 
 ## Deployment
 
-1. Update `appsettings.json` with production values
-2. Configure Azure App Service with:
-   - Connection string for Azure Storage
-   - Session signing key as environment variable
-   - HTTPS enforcement
-3. Deploy the application to Azure App Service
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions on deploying to Azure App Service using GitHub Actions.
+
+Quick steps:
+1. Create Azure App Service and required resources
+2. Configure GitHub secrets with Azure publish profile
+3. Update workflow file with your app name
+4. Push to main branch to trigger automatic deployment
 
 ## License
 
