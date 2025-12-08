@@ -27,22 +27,6 @@ public class DatabaseStorageService : IBlobStorageService
 
         // Ensure database is created
         await context.Database.EnsureCreatedAsync();
-
-        // Check if admin user exists, if not create it
-        var adminExists = await context.Users.AnyAsync(u => u.Username == "phil");
-        if (!adminExists)
-        {
-            var adminUser = new User
-            {
-                Id = "user-1",
-                Username = "phil",
-                DisplayName = "Phil",
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("General123"),
-                IsAdmin = true
-            };
-            context.Users.Add(adminUser);
-            await context.SaveChangesAsync();
-        }
     }
 
     public async Task<List<InvestorSummary>> GetInvestorIndexAsync()

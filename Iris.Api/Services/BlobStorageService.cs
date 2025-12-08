@@ -25,22 +25,11 @@ public class BlobStorageService : IBlobStorageService
         var containerClient = _blobServiceClient.GetBlobContainerClient(_containerName);
         await containerClient.CreateIfNotExistsAsync();
 
-        // Initialize users.json if it doesn't exist
+        // Initialize users.json if it doesn't exist (empty list)
         var usersBlob = containerClient.GetBlobClient("users.json");
         if (!await usersBlob.ExistsAsync())
         {
-            var initialUsers = new List<User>
-            {
-                new User
-                {
-                    Id = "user-1",
-                    Username = "phil",
-                    DisplayName = "Phil",
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("General123"),
-                    IsAdmin = true
-                }
-            };
-            await SaveUsersAsync(initialUsers);
+            await SaveUsersAsync(new List<User>());
         }
 
         // Initialize index.json if it doesn't exist
