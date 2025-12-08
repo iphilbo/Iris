@@ -64,9 +64,9 @@ function Invoke-Build {
     }
     catch {}
 
-    # Check for direct RaiseTracker.Api.exe processes
+    # Check for direct Iris.Api.exe processes
     try {
-        $raiseTrackerProcesses = Get-Process -Name "RaiseTracker.Api" -ErrorAction SilentlyContinue
+        $raiseTrackerProcesses = Get-Process -Name "Iris.Api" -ErrorAction SilentlyContinue
         if ($raiseTrackerProcesses) {
             $runningProcesses += $raiseTrackerProcesses
         }
@@ -92,7 +92,7 @@ function Invoke-Build {
     }
 
     # Now build
-    dotnet build RaiseTracker.Api --nologo --verbosity minimal
+    dotnet build Iris.Api --nologo --verbosity minimal
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Build successful!" -ForegroundColor Green
     }
@@ -113,7 +113,7 @@ function Invoke-Run {
     Start-Sleep -Seconds 2  # Give time for cleanup
 
     # Start the application in background and persist PID
-    $proc = Start-Process -NoNewWindow -FilePath "dotnet" -ArgumentList "run", "--project", "RaiseTracker.Api" -PassThru
+    $proc = Start-Process -NoNewWindow -FilePath "dotnet" -ArgumentList "run", "--project", "Iris.Api" -PassThru
     if ($proc -and $proc.Id) {
         Set-Content -Path ".raisetracker.pid" -Value $proc.Id -Encoding ASCII -NoNewline
         Write-Host "Application started (PID: $($proc.Id))" -ForegroundColor Green
@@ -134,20 +134,20 @@ function Invoke-Run {
 
 function Invoke-Clean {
     Write-Host "Cleaning build artifacts..." -ForegroundColor Cyan
-    dotnet clean RaiseTracker.Api --nologo --verbosity minimal
+    dotnet clean Iris.Api --nologo --verbosity minimal
     Write-Host "Clean complete!" -ForegroundColor Green
 }
 
 function Invoke-Watch {
     Write-Host "Starting with file watching..." -ForegroundColor Cyan
-    dotnet watch --project RaiseTracker.Api
+    dotnet watch --project Iris.Api
 }
 
 function Invoke-DbCheck {
     Write-Host "Checking database connection and data..." -ForegroundColor Cyan
 
-    if (Test-Path "RaiseTracker.Api/appsettings.Development.json") {
-        $settings = Get-Content "RaiseTracker.Api/appsettings.Development.json" | ConvertFrom-Json
+    if (Test-Path "Iris.Api/appsettings.Development.json") {
+        $settings = Get-Content "Iris.Api/appsettings.Development.json" | ConvertFrom-Json
         if ($settings.ConnectionStrings.DefaultConnection) {
             Write-Host "Database connection string found" -ForegroundColor Green
             $connStr = $settings.ConnectionStrings.DefaultConnection
@@ -204,9 +204,9 @@ function Invoke-Stop {
     }
 
     if (-not $stopped) {
-        # Fallback: stop dotnet processes matching RaiseTracker.Api
+        # Fallback: stop dotnet processes matching Iris.Api
         try {
-            $dotnetMatches = Get-CimInstance Win32_Process -Filter "Name='dotnet.exe'" | Where-Object { $_.CommandLine -match "RaiseTracker\.Api" }
+            $dotnetMatches = Get-CimInstance Win32_Process -Filter "Name='dotnet.exe'" | Where-Object { $_.CommandLine -match "Iris\.Api" }
         }
         catch { $dotnetMatches = @() }
 
@@ -237,7 +237,7 @@ function Invoke-Status {
 
     # Check if solution builds
     Write-Host "Checking build status..." -ForegroundColor Gray
-    dotnet build RaiseTracker.Api --nologo --verbosity quiet
+    dotnet build Iris.Api --nologo --verbosity quiet
     if ($LASTEXITCODE -eq 0) {
         Write-Host "Solution builds successfully" -ForegroundColor Green
     }
@@ -248,10 +248,10 @@ function Invoke-Status {
     # Check for key files and folders
     $keyFiles = @(
         "Iris.sln",
-        "RaiseTracker.Api/RaiseTracker.Api.csproj",
-        "RaiseTracker.Api/Program.cs",
-        "RaiseTracker.Api/appsettings.json",
-        "RaiseTracker.Api/appsettings.Development.json"
+        "Iris.Api/Iris.Api.csproj",
+        "Iris.Api/Program.cs",
+        "Iris.Api/appsettings.json",
+        "Iris.Api/appsettings.Development.json"
     )
 
     Write-Host "`nKey files:" -ForegroundColor Gray

@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\RaiseTracker.Api\RaiseTracker.Api.csproj" />
+    <ProjectReference Include="..\Iris.Api\Iris.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>

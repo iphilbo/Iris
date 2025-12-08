@@ -22,7 +22,7 @@ A simple web application for tracking Series A investors and related tasks. Buil
 
 1. **Configure Azure Storage Connection String**
 
-   Edit `RaiseTracker.Api/appsettings.json` and update the connection string:
+   Edit `Iris.Api/appsettings.json` and update the connection string:
    ```json
    {
      "ConnectionStrings": {
@@ -43,7 +43,7 @@ A simple web application for tracking Series A investors and related tasks. Buil
 3. **Run the Application**
 
    ```bash
-   cd RaiseTracker.Api
+   cd Iris.Api
    dotnet run
    ```
 
@@ -67,7 +67,7 @@ A simple web application for tracking Series A investors and related tasks. Buil
 ```
 Iris/
 ├── Docs/                    # Documentation
-├── RaiseTracker.Api/        # Backend API (RaiseTraker feature)
+├── Iris.Api/                # Backend API (RaiseTracker feature)
 │   ├── Models/              # Data models
 │   ├── Services/            # Business logic services
 │   ├── Middleware/          # Custom middleware

@@ -1,6 +1,6 @@
 # Azure Deployment Guide
 
-This guide explains how to deploy the RaiseTracker API to Azure App Service using GitHub Actions.
+This guide explains how to deploy the Iris application to Azure App Service using GitHub Actions.
 
 ## Prerequisites
 

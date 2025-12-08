@@ -2,13 +2,13 @@
 # Usage: .\ExecuteSchema.ps1 -ConnectionString "Server=...;Database=...;User Id=...;Password=..."
 
 param(
-    [Parameter(Mandatory=$false)]
+    [Parameter(Mandatory = $false)]
     [string]$ConnectionString = ""
 )
 
 # If connection string not provided, try to read from appsettings.json
 if ([string]::IsNullOrEmpty($ConnectionString)) {
-    $appsettingsPath = Join-Path $PSScriptRoot "..\RaiseTracker.Api\appsettings.json"
+    $appsettingsPath = Join-Path $PSScriptRoot "..\Iris.Api\appsettings.json"
     if (Test-Path $appsettingsPath) {
         $appsettings = Get-Content $appsettingsPath | ConvertFrom-Json
         $ConnectionString = $appsettings.ConnectionStrings.DefaultConnection
@@ -83,11 +83,13 @@ try {
 
         if ($exitCode -eq 0) {
             Write-Host "Schema created successfully!" -ForegroundColor Green
-        } else {
+        }
+        else {
             Write-Error "Schema creation failed with exit code $exitCode"
             exit $exitCode
         }
-    } else {
+    }
+    else {
         # Fallback: Use .NET SqlClient
         Write-Host "sqlcmd not found. Using .NET SqlClient..."
 
@@ -103,11 +105,13 @@ try {
 
             $command.ExecuteNonQuery()
             Write-Host "Schema created successfully!" -ForegroundColor Green
-        } finally {
+        }
+        finally {
             $connection.Close()
         }
     }
-} catch {
+}
+catch {
     Write-Error "Error executing schema: $_"
     exit 1
 }

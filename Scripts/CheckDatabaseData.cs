@@ -14,7 +14,7 @@ class CheckDatabaseData
         Console.WriteLine("Checking database for existing data...");
 
         // Read configuration
-        var appsettingsPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "RaiseTracker.Api", "appsettings.json");
+        var appsettingsPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "Iris.Api", "appsettings.json");
         if (!File.Exists(appsettingsPath))
         {
             Console.Error.WriteLine($"appsettings.json not found at: {appsettingsPath}");

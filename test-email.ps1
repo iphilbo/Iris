@@ -2,10 +2,10 @@
 # Tests the /api/test-email endpoint to verify email sending capability
 
 param(
-    [Parameter(Mandatory=$false)]
+    [Parameter(Mandatory = $false)]
     [string]$Email = "test@example.com",
-    
-    [Parameter(Mandatory=$false)]
+
+    [Parameter(Mandatory = $false)]
     [string]$BaseUrl = "https://iris.intralogichealth.com"
 )
 
@@ -21,60 +21,64 @@ Write-Host ""
 
 try {
     Write-Host "Sending request..." -ForegroundColor Gray
-    
+
     # Add headers to handle potential authentication issues
     $headers = @{
         "Accept" = "application/json"
     }
-    
+
     $response = Invoke-RestMethod -Uri $testUrl -Method Get -Headers $headers -ErrorAction Stop
-    
+
     Write-Host "Response received!" -ForegroundColor Green
     Write-Host ""
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host "Results:" -ForegroundColor Cyan
     Write-Host "========================================" -ForegroundColor Cyan
     Write-Host ""
-    
+
     # Display message
     if ($response.emailSent) {
         Write-Host "Status: " -NoNewline
         Write-Host "SUCCESS" -ForegroundColor Green
         Write-Host "Message: $($response.message)" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "Status: " -NoNewline
         Write-Host "FAILED" -ForegroundColor Red
         Write-Host "Message: $($response.message)" -ForegroundColor Red
     }
-    
+
     Write-Host ""
     Write-Host "Configuration Status:" -ForegroundColor Yellow
     Write-Host "  Connection String: " -NoNewline
     if ($response.configuration.HasConnectionString) {
         Write-Host "Configured" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "NOT Configured" -ForegroundColor Red
     }
-    
+
     Write-Host "  From Email: " -NoNewline
     if ($response.configuration.HasFromEmail) {
         Write-Host "Configured ($($response.configuration.FromEmail))" -ForegroundColor Green
-    } else {
+    }
+    else {
         Write-Host "NOT Configured" -ForegroundColor Red
     }
-    
+
     Write-Host ""
     Write-Host "Test Details:" -ForegroundColor Yellow
     Write-Host "  Test Email: $($response.testEmail)"
     Write-Host "  Test Link: $($response.testLink)"
-    
+
     Write-Host ""
     Write-Host "========================================" -ForegroundColor Cyan
-    
+
     if ($response.emailSent) {
         Write-Host "✓ Email test PASSED - Check your inbox!" -ForegroundColor Green
         exit 0
-    } else {
+    }
+    else {
         Write-Host "✗ Email test FAILED - Check configuration" -ForegroundColor Red
         Write-Host ""
         Write-Host "To fix:" -ForegroundColor Yellow
@@ -85,8 +89,9 @@ try {
         Write-Host "3. Click Save to restart the app" -ForegroundColor Gray
         exit 1
     }
-    
-} catch {
+
+}
+catch {
     Write-Host ""
     Write-Host "========================================" -ForegroundColor Red
     Write-Host "ERROR: Failed to test email endpoint" -ForegroundColor Red
@@ -94,11 +99,11 @@ try {
     Write-Host ""
     Write-Host "Error Details:" -ForegroundColor Yellow
     Write-Host $_.Exception.Message -ForegroundColor Red
-    
+
     if ($_.Exception.Response) {
         $statusCode = $_.Exception.Response.StatusCode.value__
         Write-Host "HTTP Status: $statusCode" -ForegroundColor Red
-        
+
         if ($statusCode -eq 401) {
             Write-Host ""
             Write-Host "401 Unauthorized - This usually means:" -ForegroundColor Yellow
@@ -107,7 +112,7 @@ try {
             Write-Host "- Check: https://github.com/iphilbo/Iris/actions" -ForegroundColor Cyan
         }
     }
-    
+
     Write-Host ""
     Write-Host "Possible issues:" -ForegroundColor Yellow
     Write-Host "- The app may not be deployed yet (check GitHub Actions)" -ForegroundColor Gray
@@ -115,10 +120,9 @@ try {
     Write-Host "- Network connectivity issues" -ForegroundColor Gray
     Write-Host ""
     Write-Host "To test locally, run:" -ForegroundColor Yellow
-    Write-Host "  cd RaiseTracker.Api" -ForegroundColor Cyan
+    Write-Host "  cd Iris.Api" -ForegroundColor Cyan
     Write-Host "  dotnet run" -ForegroundColor Cyan
     Write-Host "  Then test: http://localhost:5000/api/test-email?email=your@email.com" -ForegroundColor Cyan
-    
+
     exit 1
 }
-

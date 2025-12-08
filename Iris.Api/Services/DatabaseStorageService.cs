@@ -176,6 +176,11 @@ public class DatabaseStorageService : IBlobStorageService
         {
             return (false, null); // Concurrency conflict
         }
+        catch
+        {
+            // Rethrow so the endpoint can handle it and return a proper error response
+            throw;
+        }
     }
 
     public async Task<bool> DeleteInvestorAsync(string id)

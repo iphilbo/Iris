@@ -449,8 +449,23 @@ async function handleInvestorSubmit(e) {
         } else if (response.status === 401) {
             showLogin();
         } else {
-            const error = await response.json();
-            alert(error.error || 'Failed to save investor');
+            let errorMessage = 'Failed to save investor';
+            try {
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('application/json')) {
+                    const error = await response.json();
+                    errorMessage = error.error || error.detail || errorMessage;
+                } else {
+                    const text = await response.text();
+                    if (text) {
+                        errorMessage = text;
+                    }
+                }
+            } catch (parseError) {
+                console.error('Failed to parse error response:', parseError);
+                errorMessage = `Server error (${response.status}). Please try again.`;
+            }
+            alert(errorMessage);
         }
     } catch (error) {
         console.error('Failed to save investor:', error);

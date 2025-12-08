@@ -6,8 +6,8 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Azure.Storage.Blobs;
 using Microsoft.EntityFrameworkCore;
-using RaiseTracker.Api.Data;
-using RaiseTracker.Api.Models;
+using Iris.Data;
+using Iris.Models;
 
 namespace Scripts;
 
@@ -26,10 +26,10 @@ class Program
 
         // Read configuration
         var baseDir = AppContext.BaseDirectory;
-        var appsettingsPath = Path.Combine(baseDir, "..", "..", "..", "..", "RaiseTracker.Api", "appsettings.json");
+        var appsettingsPath = Path.Combine(baseDir, "..", "..", "..", "..", "Iris.Api", "appsettings.json");
         if (!File.Exists(appsettingsPath))
         {
-            appsettingsPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "RaiseTracker.Api", "appsettings.json");
+            appsettingsPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "Iris.Api", "appsettings.json");
         }
 
         if (!File.Exists(appsettingsPath))

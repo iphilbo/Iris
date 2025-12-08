@@ -4,6 +4,7 @@ using Iris.Middleware;
 using Iris.Models;
 using Iris.Services;
 using System.Text.Json;
+using Prometheus;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,6 +38,13 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Initialize SysProc for error logging
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (!string.IsNullOrEmpty(connectionString))
+{
+    SysProc.SetConnectionString(connectionString);
+}
 
 // Initialize blob storage
 var blobStorage = app.Services.GetRequiredService<IBlobStorageService>();
@@ -94,19 +102,21 @@ app.MapPost("/api/request-magic-link", async (RequestMagicLinkRequest request, I
             // Get base URL from request
             var baseUrl = $"{context.Request.Scheme}://{context.Request.Host}";
 
-            // Send magic link email
-            var emailSent = await emailService.SendMagicLinkEmailAsync(request.Email, token, baseUrl);
+            // Send magic link email asynchronously (fire and forget)
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await emailService.SendMagicLinkEmailAsync(request.Email, token, baseUrl);
+                }
+                catch (Exception ex)
+                {
+                    _ = SysProc.SysLogItAsync($"Error sending magic link email to {request.Email}: {ex.Message} | Stack trace: {ex.StackTrace}", "System");
+                }
+            });
 
-            if (emailSent)
-            {
-                return Results.Ok(new { message = "A magic link has been sent to your email address. Please check your inbox." });
-            }
-            else
-            {
-                // Email not configured - for development, return the link directly
-                Console.WriteLine($"Warning: Email sending failed or not configured. Magic link for {request.Email}: {baseUrl}/api/validate-magic-link?token={token}");
-                return Results.Ok(new { message = $"Email sending is not configured. Your magic link: {baseUrl}/api/validate-magic-link?token={token}" });
-            }
+            // Always return generic success message
+            return Results.Ok(new { message = "If an account with that email exists, a magic link has been sent. Please check your inbox." });
         }
         else
         {
@@ -116,8 +126,7 @@ app.MapPost("/api/request-magic-link", async (RequestMagicLinkRequest request, I
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"Error in request-magic-link: {ex.Message}");
-        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        _ = SysProc.SysLogItAsync($"Error in request-magic-link: {ex.Message} | Stack trace: {ex.StackTrace}", "System");
         return Results.Problem("An error occurred processing your request.");
     }
 });
@@ -164,8 +173,7 @@ app.MapGet("/api/validate-magic-link", async (string token, IAuthService authSer
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"Error in validate-magic-link: {ex.Message}");
-        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        _ = SysProc.SysLogItAsync($"Error in validate-magic-link: {ex.Message} | Stack trace: {ex.StackTrace}", "System");
         return Results.Problem("An error occurred processing your request.");
     }
 });
@@ -184,7 +192,7 @@ app.MapPost("/api/forgot-password", async (ForgotPasswordRequest request, IAuthS
         if (foundUser == null)
         {
             // Return generic message for security, but log for debugging
-            Console.WriteLine($"Password reset requested for email: {request.Email}, but user not found. Available users: {string.Join(", ", allUsers.Select(u => u.Username))}");
+            _ = SysProc.SysLogItAsync($"Password reset requested for email: {request.Email}, but user not found. Available users: {string.Join(", ", allUsers.Select(u => u.Username))}", "System");
             return Results.Ok(new { message = "If an account with that email exists, a password reset email has been sent." });
         }
 
@@ -205,14 +213,13 @@ app.MapPost("/api/forgot-password", async (ForgotPasswordRequest request, IAuthS
         else
         {
             // Email not configured or failed - return password in response as fallback (not ideal, but functional)
-            Console.WriteLine($"Warning: Email sending failed or not configured. Returning password in response for {request.Email}");
+            _ = SysProc.SysLogItAsync($"Warning: Email sending failed or not configured. Returning password in response for {request.Email}", "System");
             return Results.Ok(new { message = $"Email sending is not configured. Your new temporary password is: {newPassword}. Please change it after logging in." });
         }
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"Error in forgot-password: {ex.Message}");
-        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        _ = SysProc.SysLogItAsync($"Error in forgot-password: {ex.Message} | Stack trace: {ex.StackTrace}", "System");
         return Results.Problem("An error occurred processing your request.");
     }
 });
@@ -261,8 +268,8 @@ app.MapGet("/api/test-email", async (string? email, HttpContext context, IEmailS
 
     return Results.Ok(new
     {
-        message = emailSent 
-            ? "Test email sent successfully! Check your inbox." 
+        message = emailSent
+            ? "Test email sent successfully! Check your inbox."
             : "Failed to send test email. Check configuration and application logs.",
         emailSent,
         configuration = configStatus,
@@ -464,49 +471,82 @@ app.MapPost("/api/investors", async (CreateInvestorRequest request, IBlobStorage
 
 app.MapPut("/api/investors/{id}", async (string id, JsonElement body, IBlobStorageService blobStorage, HttpContext context) =>
 {
-    var userId = context.Items["UserId"]?.ToString() ?? "unknown";
-
-    var existing = await blobStorage.GetInvestorAsync(id);
-    if (existing == null)
+    try
     {
-        return Results.NotFound(new ErrorResponse { Error = "Investor not found" });
+        var userId = context.Items["UserId"]?.ToString() ?? "unknown";
+
+        var existing = await blobStorage.GetInvestorAsync(id);
+        if (existing == null)
+        {
+            return Results.NotFound(new ErrorResponse { Error = "Investor not found" });
+        }
+
+        // Apply updates from request body
+        if (body.TryGetProperty("name", out var nameProp)) existing.Name = nameProp.GetString() ?? existing.Name;
+        if (body.TryGetProperty("mainContact", out var mainContactProp)) existing.MainContact = mainContactProp.GetString();
+        if (body.TryGetProperty("contactEmail", out var emailProp)) existing.ContactEmail = emailProp.GetString();
+        if (body.TryGetProperty("contactPhone", out var phoneProp)) existing.ContactPhone = phoneProp.GetString();
+        if (body.TryGetProperty("category", out var categoryProp)) existing.Category = categoryProp.GetString() ?? existing.Category;
+        if (body.TryGetProperty("stage", out var stageProp)) existing.Stage = stageProp.GetString() ?? existing.Stage;
+        if (body.TryGetProperty("status", out var statusProp)) existing.Status = statusProp.GetString() ?? existing.Status;
+        if (body.TryGetProperty("commitAmount", out var amountProp))
+        {
+            if (amountProp.ValueKind == JsonValueKind.Number)
+            {
+                existing.CommitAmount = amountProp.GetDecimal();
+            }
+            else if (amountProp.ValueKind == JsonValueKind.String)
+            {
+                var amountStr = amountProp.GetString();
+                if (!string.IsNullOrWhiteSpace(amountStr) && decimal.TryParse(amountStr, out var parsedAmount))
+                {
+                    existing.CommitAmount = parsedAmount;
+                }
+                else if (string.IsNullOrWhiteSpace(amountStr))
+                {
+                    existing.CommitAmount = 0;
+                }
+            }
+            else if (amountProp.ValueKind == JsonValueKind.Null)
+            {
+                existing.CommitAmount = 0;
+            }
+        }
+        if (body.TryGetProperty("notes", out var notesProp)) existing.Notes = notesProp.GetString();
+
+        existing.UpdatedBy = userId;
+        existing.UpdatedAt = DateTime.UtcNow;
+
+        var (success, etag) = await blobStorage.SaveInvestorAsync(existing);
+        if (!success)
+        {
+            return Results.Conflict(new ErrorResponse { Error = "Data changed, please reload", Code = "ETAG_MISMATCH" });
+        }
+
+        // Update index
+        var index = await blobStorage.GetInvestorIndexAsync();
+        var indexItem = index.FirstOrDefault(i => i.Id == id);
+        if (indexItem != null)
+        {
+            indexItem.Name = existing.Name;
+            indexItem.Stage = existing.Stage;
+            indexItem.Category = existing.Category;
+            indexItem.Status = existing.Status;
+            indexItem.CommitAmount = existing.CommitAmount;
+            indexItem.UpdatedAt = existing.UpdatedAt;
+            await blobStorage.UpdateInvestorIndexAsync(index);
+        }
+
+        return Results.Ok(existing);
     }
-
-    // Apply updates from request body
-    if (body.TryGetProperty("name", out var nameProp)) existing.Name = nameProp.GetString() ?? existing.Name;
-    if (body.TryGetProperty("mainContact", out var mainContactProp)) existing.MainContact = mainContactProp.GetString();
-    if (body.TryGetProperty("contactEmail", out var emailProp)) existing.ContactEmail = emailProp.GetString();
-    if (body.TryGetProperty("contactPhone", out var phoneProp)) existing.ContactPhone = phoneProp.GetString();
-    if (body.TryGetProperty("category", out var categoryProp)) existing.Category = categoryProp.GetString() ?? existing.Category;
-    if (body.TryGetProperty("stage", out var stageProp)) existing.Stage = stageProp.GetString() ?? existing.Stage;
-    if (body.TryGetProperty("status", out var statusProp)) existing.Status = statusProp.GetString() ?? existing.Status;
-    if (body.TryGetProperty("commitAmount", out var amountProp)) existing.CommitAmount = amountProp.GetDecimal();
-    if (body.TryGetProperty("notes", out var notesProp)) existing.Notes = notesProp.GetString();
-
-    existing.UpdatedBy = userId;
-    existing.UpdatedAt = DateTime.UtcNow;
-
-    var (success, etag) = await blobStorage.SaveInvestorAsync(existing);
-    if (!success)
+    catch (Exception ex)
     {
-        return Results.Conflict(new ErrorResponse { Error = "Data changed, please reload", Code = "ETAG_MISMATCH" });
+        _ = SysProc.SysLogItAsync($"Error updating investor {id}: {ex.Message} | Stack trace: {ex.StackTrace}", "System");
+        return Results.Problem(
+            detail: "An error occurred while updating the investor. Please try again.",
+            statusCode: 500
+        );
     }
-
-    // Update index
-    var index = await blobStorage.GetInvestorIndexAsync();
-    var indexItem = index.FirstOrDefault(i => i.Id == id);
-    if (indexItem != null)
-    {
-        indexItem.Name = existing.Name;
-        indexItem.Stage = existing.Stage;
-        indexItem.Category = existing.Category;
-        indexItem.Status = existing.Status;
-        indexItem.CommitAmount = existing.CommitAmount;
-        indexItem.UpdatedAt = existing.UpdatedAt;
-        await blobStorage.UpdateInvestorIndexAsync(index);
-    }
-
-    return Results.Ok(existing);
 });
 
 app.MapDelete("/api/investors/{id}", async (string id, IBlobStorageService blobStorage) =>

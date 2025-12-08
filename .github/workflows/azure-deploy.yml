@@ -1,4 +1,4 @@
-name: Build and Deploy to Azure
+name: Build and Deploy Iris to Azure
 
 on:
   push:
@@ -10,7 +10,7 @@ on:
 env:
   AZURE_WEBAPP_NAME: iris-app-corp
   DOTNET_VERSION: '8.0.x'
-  PROJECT_PATH: 'RaiseTracker.Api/RaiseTracker.Api.csproj'
+  PROJECT_PATH: 'Iris.Api/Iris.Api.csproj'
 
 jobs:
   build-and-deploy:

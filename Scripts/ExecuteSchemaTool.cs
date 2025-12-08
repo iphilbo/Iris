@@ -3,11 +3,11 @@ using Microsoft.Data.SqlClient;
 using System.Text.Json;
 
 var baseDir = AppContext.BaseDirectory;
-var appsettingsPath = Path.Combine(baseDir, "..", "..", "..", "..", "RaiseTracker.Api", "appsettings.json");
+var appsettingsPath = Path.Combine(baseDir, "..", "..", "..", "..", "Iris.Api", "appsettings.json");
 if (!File.Exists(appsettingsPath))
 {
     // Try alternative path
-    appsettingsPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "RaiseTracker.Api", "appsettings.json");
+    appsettingsPath = Path.Combine(Directory.GetCurrentDirectory(), "..", "Iris.Api", "appsettings.json");
 }
 
 if (!File.Exists(appsettingsPath))

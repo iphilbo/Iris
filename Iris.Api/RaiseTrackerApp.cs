@@ -53,7 +53,7 @@ public static class IrisApp
         });
 
         // Configure static files for Iris's wwwroot
-        // This will be served from RaiseTracker.Api/wwwroot when path base is /RaiseTracker
+        // This will be served from Iris.Api/wwwroot when path base is /RaiseTracker
         builder.WebHost.UseStaticWebAssets();
     }
 
@@ -82,11 +82,11 @@ public static class IrisApp
         possiblePaths.Add(Path.GetFullPath(devPath));
 
         // 2. Development: relative to project directory
-        var projectPath = Path.Combine(currentDir, "RaiseTracker.Api", "wwwroot");
+        var projectPath = Path.Combine(currentDir, "Iris.Api", "wwwroot");
         possiblePaths.Add(Path.GetFullPath(projectPath));
 
         // 3. Production: in publish output, static web assets are typically in _content/{ProjectName}/
-        var assemblyName = typeof(IrisApp).Assembly.GetName().Name ?? "RaiseTracker.Api";
+        var assemblyName = typeof(IrisApp).Assembly.GetName().Name ?? "Iris.Api";
         var contentPath = Path.Combine(currentDir, "_content", assemblyName, "wwwroot");
         possiblePaths.Add(Path.GetFullPath(contentPath));
 
