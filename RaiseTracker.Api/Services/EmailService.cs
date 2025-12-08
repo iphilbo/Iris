@@ -18,7 +18,10 @@ public class EmailService : IEmailService
 
     private void InitializeEmailClient()
     {
-        var connectionString = _configuration["Email:ConnectionString"];
+        // Try both formats: Email:ConnectionString (local) and Email__ConnectionString (Azure App Service)
+        var connectionString = _configuration["Email:ConnectionString"] 
+            ?? _configuration["Email__ConnectionString"];
+        
         if (!string.IsNullOrEmpty(connectionString))
         {
             try
@@ -29,12 +32,14 @@ public class EmailService : IEmailService
             catch (Exception ex)
             {
                 Console.WriteLine($"Failed to initialize Azure Communication Services Email client: {ex.Message}");
+                Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 _emailClient = null;
             }
         }
         else
         {
             Console.WriteLine("Azure Communication Services connection string not configured");
+            Console.WriteLine("Checked both 'Email:ConnectionString' and 'Email__ConnectionString'");
         }
     }
 
@@ -46,10 +51,14 @@ public class EmailService : IEmailService
             return false;
         }
 
-        var fromEmail = _configuration["Email:FromEmail"];
+        // Try both formats: Email:FromEmail (local) and Email__FromEmail (Azure App Service)
+        var fromEmail = _configuration["Email:FromEmail"] 
+            ?? _configuration["Email__FromEmail"];
+        
         if (string.IsNullOrEmpty(fromEmail))
         {
             Console.WriteLine($"FromEmail not configured. Skipping email send to {toEmail}");
+            Console.WriteLine("Checked both 'Email:FromEmail' and 'Email__FromEmail'");
             return false;
         }
 
@@ -150,10 +159,14 @@ Series A Investor Tracker Team";
             return false;
         }
 
-        var fromEmail = _configuration["Email:FromEmail"];
+        // Try both formats: Email:FromEmail (local) and Email__FromEmail (Azure App Service)
+        var fromEmail = _configuration["Email:FromEmail"] 
+            ?? _configuration["Email__FromEmail"];
+        
         if (string.IsNullOrEmpty(fromEmail))
         {
             Console.WriteLine($"FromEmail not configured. Skipping email send to {toEmail}");
+            Console.WriteLine("Checked both 'Email:FromEmail' and 'Email__FromEmail'");
             return false;
         }
 
