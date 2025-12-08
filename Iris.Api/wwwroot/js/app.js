@@ -229,7 +229,16 @@ async function applyFilters() {
         const categoryMatch = !filters.category || investor.category === filters.category;
         const stageMatch = !filters.stage || investor.stage === filters.stage;
         const statusMatch = !filters.status || (investor.status || 'Active') === filters.status;
-        const ownerMatch = !filters.owner || (investor.owner || '') === filters.owner;
+        let ownerMatch = true;
+        if (filters.owner) {
+            if (filters.owner === '__NONE__') {
+                // Filter for investors without owners
+                ownerMatch = !investor.owner || investor.owner === '';
+            } else {
+                // Filter for specific owner
+                ownerMatch = (investor.owner || '') === filters.owner;
+            }
+        }
 
         return categoryMatch && stageMatch && statusMatch && ownerMatch;
     });
@@ -326,6 +335,12 @@ async function populateOwnerDropdowns() {
             // Clear existing options (except "None" and "All")
             ownerSelect.innerHTML = '<option value="">None</option>';
             filterOwnerSelect.innerHTML = '<option value="">All</option>';
+            
+            // Add "None" option at the top of filter dropdown for filtering investors without owners
+            const noneOption = document.createElement('option');
+            noneOption.value = '__NONE__';
+            noneOption.textContent = 'None';
+            filterOwnerSelect.appendChild(noneOption);
             
             // Add user display names to form dropdown
             users.forEach(user => {
@@ -519,7 +534,7 @@ async function editInvestor(id) {
     if (!details) return;
 
     await populateOwnerDropdowns();
-    
+
     editingInvestorId = id;
     document.getElementById('name').value = details.name;
     document.getElementById('category').value = details.category;
