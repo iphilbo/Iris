@@ -234,6 +234,43 @@ app.MapGet("/api/session", (HttpContext context, IAuthService authService) =>
     return Results.Ok(new { userId = session.UserId, displayName = session.DisplayName, isAdmin = session.IsAdmin });
 });
 
+// Test email endpoint - for testing email configuration
+app.MapGet("/api/test-email", async (string? email, HttpContext context, IEmailService emailService, IConfiguration configuration) =>
+{
+    if (string.IsNullOrEmpty(email))
+    {
+        return Results.BadRequest(new { error = "Email parameter is required. Use ?email=your@email.com" });
+    }
+
+    // Check configuration
+    var connectionString = configuration["Email:ConnectionString"] ?? configuration["Email__ConnectionString"];
+    var fromEmail = configuration["Email:FromEmail"] ?? configuration["Email__FromEmail"];
+
+    var configStatus = new
+    {
+        HasConnectionString = !string.IsNullOrEmpty(connectionString),
+        HasFromEmail = !string.IsNullOrEmpty(fromEmail),
+        FromEmail = fromEmail ?? "Not configured",
+        ConnectionStringConfigured = !string.IsNullOrEmpty(connectionString) ? "Yes (hidden)" : "No"
+    };
+
+    // Try to send a test email
+    var testToken = "TEST-TOKEN-12345";
+    var baseUrl = $"{context.Request.Scheme}://{context.Request.Host}";
+    var emailSent = await emailService.SendMagicLinkEmailAsync(email, testToken, baseUrl);
+
+    return Results.Ok(new
+    {
+        message = emailSent 
+            ? "Test email sent successfully! Check your inbox." 
+            : "Failed to send test email. Check configuration and application logs.",
+        emailSent,
+        configuration = configStatus,
+        testEmail = email,
+        testLink = $"{baseUrl}/api/validate-magic-link?token={testToken}"
+    });
+});
+
 app.MapPost("/api/logout", (HttpContext context) =>
 {
     context.Response.Cookies.Delete("AuthSession");
