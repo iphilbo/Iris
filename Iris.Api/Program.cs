@@ -70,6 +70,9 @@ defaultFilesOptions.DefaultFileNames.Add("raise-tracker.html");
 app.UseDefaultFiles(defaultFilesOptions);
 app.UseStaticFiles();
 
+// Enable routing
+app.UseRouting();
+
 // Root route - serve the main HTML file
 app.MapGet("/", async (HttpContext context) =>
 {
@@ -77,23 +80,23 @@ app.MapGet("/", async (HttpContext context) =>
     {
         // Try multiple possible locations for the HTML file
         var possiblePaths = new List<string>();
-        
+
         // 1. WebRootPath (standard location)
         if (!string.IsNullOrEmpty(app.Environment.WebRootPath))
         {
             possiblePaths.Add(Path.Combine(app.Environment.WebRootPath, "raise-tracker.html"));
         }
-        
+
         // 2. Current directory wwwroot
         possiblePaths.Add(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "raise-tracker.html"));
-        
+
         // 3. App base path wwwroot
         var appBase = AppContext.BaseDirectory;
         possiblePaths.Add(Path.Combine(appBase, "wwwroot", "raise-tracker.html"));
-        
+
         // 4. Parent directory wwwroot (in case of nested structure)
         possiblePaths.Add(Path.Combine(Directory.GetParent(Directory.GetCurrentDirectory())?.FullName ?? "", "wwwroot", "raise-tracker.html"));
-        
+
         string? foundPath = null;
         foreach (var path in possiblePaths)
         {
@@ -103,7 +106,7 @@ app.MapGet("/", async (HttpContext context) =>
                 break;
             }
         }
-        
+
         if (foundPath != null)
         {
             context.Response.ContentType = "text/html";
