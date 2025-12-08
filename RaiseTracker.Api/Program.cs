@@ -39,40 +39,16 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Initialize SysProc for error logging (optional - don't fail if not configured)
+// Initialize SysProc for error logging
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 if (!string.IsNullOrEmpty(connectionString))
 {
-    try
-    {
-        SysProc.SetConnectionString(connectionString);
-    }
-    catch (Exception ex)
-    {
-        // Log to console if SysProc setup fails - don't fail startup
-        Console.WriteLine($"[WARNING] Failed to initialize SysProc: {ex.Message}");
-    }
+    SysProc.SetConnectionString(connectionString);
 }
 
-// Initialize blob storage (with error handling - don't fail startup if DB is temporarily unavailable)
-try
-{
-    var blobStorage = app.Services.GetRequiredService<IBlobStorageService>();
-    await blobStorage.InitializeAsync();
-}
-catch (Exception ex)
-{
-    // Log but don't fail startup - allows app to serve static files even if DB is down
-    try
-    {
-        _ = SysProc.SysLogItAsync($"Warning: Failed to initialize storage on startup: {ex.Message}", "System");
-    }
-    catch
-    {
-        // If SysProc logging fails, just log to console
-        Console.WriteLine($"[WARNING] Failed to initialize storage on startup: {ex.Message}");
-    }
-}
+// Initialize blob storage
+var blobStorage = app.Services.GetRequiredService<IBlobStorageService>();
+await blobStorage.InitializeAsync();
 
 // Middleware
 app.UseCors();
@@ -86,65 +62,7 @@ defaultFilesOptions.DefaultFileNames.Add("raise-tracker.html");
 app.UseDefaultFiles(defaultFilesOptions);
 app.UseStaticFiles();
 
-// Enable routing
-app.UseRouting();
-
-// Root route - serve the main HTML file
-app.MapGet("/", async (HttpContext context) =>
-{
-    try
-    {
-        // Try multiple possible locations for the HTML file
-        var possiblePaths = new List<string>();
-
-        // 1. WebRootPath (standard location)
-        if (!string.IsNullOrEmpty(app.Environment.WebRootPath))
-        {
-            possiblePaths.Add(Path.Combine(app.Environment.WebRootPath, "raise-tracker.html"));
-        }
-
-        // 2. Current directory wwwroot
-        possiblePaths.Add(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "raise-tracker.html"));
-
-        // 3. App base path wwwroot
-        var appBase = AppContext.BaseDirectory;
-        possiblePaths.Add(Path.Combine(appBase, "wwwroot", "raise-tracker.html"));
-
-        // 4. Parent directory wwwroot (in case of nested structure)
-        possiblePaths.Add(Path.Combine(Directory.GetParent(Directory.GetCurrentDirectory())?.FullName ?? "", "wwwroot", "raise-tracker.html"));
-
-        string? foundPath = null;
-        foreach (var path in possiblePaths)
-        {
-            if (File.Exists(path))
-            {
-                foundPath = path;
-                break;
-            }
-        }
-
-        if (foundPath != null)
-        {
-            context.Response.ContentType = "text/html";
-            await context.Response.SendFileAsync(foundPath);
-        }
-        else
-        {
-            context.Response.StatusCode = 500;
-            await context.Response.WriteAsync($"<html><body><h1>Application Error</h1><p>Could not find raise-tracker.html. Searched paths:<ul>{string.Join("", possiblePaths.Select(p => $"<li>{p}</li>"))}</ul></p></body></html>");
-        }
-    }
-    catch (Exception ex)
-    {
-        context.Response.StatusCode = 500;
-        await context.Response.WriteAsync($"<html><body><h1>Application Error</h1><p>{ex.Message}</p></body></html>");
-    }
-});
-
 // API Endpoints
-
-// Health check endpoint
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
 // Auth endpoints
 app.MapGet("/api/users", async (IBlobStorageService blobStorage, IAuthService authService, HttpContext context) =>
@@ -553,82 +471,49 @@ app.MapPost("/api/investors", async (CreateInvestorRequest request, IBlobStorage
 
 app.MapPut("/api/investors/{id}", async (string id, JsonElement body, IBlobStorageService blobStorage, HttpContext context) =>
 {
-    try
+    var userId = context.Items["UserId"]?.ToString() ?? "unknown";
+
+    var existing = await blobStorage.GetInvestorAsync(id);
+    if (existing == null)
     {
-        var userId = context.Items["UserId"]?.ToString() ?? "unknown";
-
-        var existing = await blobStorage.GetInvestorAsync(id);
-        if (existing == null)
-        {
-            return Results.NotFound(new ErrorResponse { Error = "Investor not found" });
-        }
-
-        // Apply updates from request body
-        if (body.TryGetProperty("name", out var nameProp)) existing.Name = nameProp.GetString() ?? existing.Name;
-        if (body.TryGetProperty("mainContact", out var mainContactProp)) existing.MainContact = mainContactProp.GetString();
-        if (body.TryGetProperty("contactEmail", out var emailProp)) existing.ContactEmail = emailProp.GetString();
-        if (body.TryGetProperty("contactPhone", out var phoneProp)) existing.ContactPhone = phoneProp.GetString();
-        if (body.TryGetProperty("category", out var categoryProp)) existing.Category = categoryProp.GetString() ?? existing.Category;
-        if (body.TryGetProperty("stage", out var stageProp)) existing.Stage = stageProp.GetString() ?? existing.Stage;
-        if (body.TryGetProperty("status", out var statusProp)) existing.Status = statusProp.GetString() ?? existing.Status;
-        if (body.TryGetProperty("commitAmount", out var amountProp))
-        {
-            if (amountProp.ValueKind == JsonValueKind.Number)
-            {
-                existing.CommitAmount = amountProp.GetDecimal();
-            }
-            else if (amountProp.ValueKind == JsonValueKind.String)
-            {
-                var amountStr = amountProp.GetString();
-                if (!string.IsNullOrWhiteSpace(amountStr) && decimal.TryParse(amountStr, out var parsedAmount))
-                {
-                    existing.CommitAmount = parsedAmount;
-                }
-                else if (string.IsNullOrWhiteSpace(amountStr))
-                {
-                    existing.CommitAmount = 0;
-                }
-            }
-            else if (amountProp.ValueKind == JsonValueKind.Null)
-            {
-                existing.CommitAmount = 0;
-            }
-        }
-        if (body.TryGetProperty("notes", out var notesProp)) existing.Notes = notesProp.GetString();
-
-        existing.UpdatedBy = userId;
-        existing.UpdatedAt = DateTime.UtcNow;
-
-        var (success, etag) = await blobStorage.SaveInvestorAsync(existing);
-        if (!success)
-        {
-            return Results.Conflict(new ErrorResponse { Error = "Data changed, please reload", Code = "ETAG_MISMATCH" });
-        }
-
-        // Update index
-        var index = await blobStorage.GetInvestorIndexAsync();
-        var indexItem = index.FirstOrDefault(i => i.Id == id);
-        if (indexItem != null)
-        {
-            indexItem.Name = existing.Name;
-            indexItem.Stage = existing.Stage;
-            indexItem.Category = existing.Category;
-            indexItem.Status = existing.Status;
-            indexItem.CommitAmount = existing.CommitAmount;
-            indexItem.UpdatedAt = existing.UpdatedAt;
-            await blobStorage.UpdateInvestorIndexAsync(index);
-        }
-
-        return Results.Ok(existing);
+        return Results.NotFound(new ErrorResponse { Error = "Investor not found" });
     }
-    catch (Exception ex)
+
+    // Apply updates from request body
+    if (body.TryGetProperty("name", out var nameProp)) existing.Name = nameProp.GetString() ?? existing.Name;
+    if (body.TryGetProperty("mainContact", out var mainContactProp)) existing.MainContact = mainContactProp.GetString();
+    if (body.TryGetProperty("contactEmail", out var emailProp)) existing.ContactEmail = emailProp.GetString();
+    if (body.TryGetProperty("contactPhone", out var phoneProp)) existing.ContactPhone = phoneProp.GetString();
+    if (body.TryGetProperty("category", out var categoryProp)) existing.Category = categoryProp.GetString() ?? existing.Category;
+    if (body.TryGetProperty("stage", out var stageProp)) existing.Stage = stageProp.GetString() ?? existing.Stage;
+    if (body.TryGetProperty("status", out var statusProp)) existing.Status = statusProp.GetString() ?? existing.Status;
+    if (body.TryGetProperty("commitAmount", out var amountProp)) existing.CommitAmount = amountProp.GetDecimal();
+    if (body.TryGetProperty("notes", out var notesProp)) existing.Notes = notesProp.GetString();
+
+    existing.UpdatedBy = userId;
+    existing.UpdatedAt = DateTime.UtcNow;
+
+    var (success, etag) = await blobStorage.SaveInvestorAsync(existing);
+    if (!success)
     {
-        _ = SysProc.SysLogItAsync($"Error updating investor {id}: {ex.Message} | Stack trace: {ex.StackTrace}", "System");
-        return Results.Problem(
-            detail: "An error occurred while updating the investor. Please try again.",
-            statusCode: 500
-        );
+        return Results.Conflict(new ErrorResponse { Error = "Data changed, please reload", Code = "ETAG_MISMATCH" });
     }
+
+    // Update index
+    var index = await blobStorage.GetInvestorIndexAsync();
+    var indexItem = index.FirstOrDefault(i => i.Id == id);
+    if (indexItem != null)
+    {
+        indexItem.Name = existing.Name;
+        indexItem.Stage = existing.Stage;
+        indexItem.Category = existing.Category;
+        indexItem.Status = existing.Status;
+        indexItem.CommitAmount = existing.CommitAmount;
+        indexItem.UpdatedAt = existing.UpdatedAt;
+        await blobStorage.UpdateInvestorIndexAsync(index);
+    }
+
+    return Results.Ok(existing);
 });
 
 app.MapDelete("/api/investors/{id}", async (string id, IBlobStorageService blobStorage) =>
