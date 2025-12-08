@@ -26,4 +26,5 @@
     <PackageReference Include="Azure.Core" Version="1.47.3" />
   </ItemGroup>
 
-</Project>
+  </Project>
+

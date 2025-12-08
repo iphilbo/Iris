@@ -62,6 +62,22 @@ defaultFilesOptions.DefaultFileNames.Add("raise-tracker.html");
 app.UseDefaultFiles(defaultFilesOptions);
 app.UseStaticFiles();
 
+// Root route - serve the main HTML file
+app.MapGet("/", async (HttpContext context) =>
+{
+    var filePath = Path.Combine(app.Environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "raise-tracker.html");
+    if (File.Exists(filePath))
+    {
+        context.Response.ContentType = "text/html";
+        await context.Response.SendFileAsync(filePath);
+    }
+    else
+    {
+        context.Response.StatusCode = 404;
+        await context.Response.WriteAsync("File not found");
+    }
+});
+
 // API Endpoints
 
 // Auth endpoints
