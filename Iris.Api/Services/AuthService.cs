@@ -24,28 +24,6 @@ public class AuthService : IAuthService
         _ = Task.Run(CleanupExpiredTokens);
     }
 
-    public async Task<User?> ValidateUserAsync(string userId, string password)
-    {
-        var users = await _blobStorage.GetUsersAsync();
-        // Normalize email to lowercase for comparison
-        var normalizedUserId = userId.ToLowerInvariant();
-        var user = users.FirstOrDefault(u =>
-            u.Id.Equals(normalizedUserId, StringComparison.OrdinalIgnoreCase) ||
-            (!string.IsNullOrEmpty(u.Username) && u.Username.ToLowerInvariant().Equals(normalizedUserId)));
-
-        if (user == null)
-        {
-            return null;
-        }
-
-        if (BCrypt.Net.BCrypt.Verify(password, user.PasswordHash))
-        {
-            return user;
-        }
-
-        return null;
-    }
-
     public string CreateSessionToken(Session session)
     {
         var json = JsonSerializer.Serialize(session, _jsonOptions);
@@ -116,41 +94,6 @@ public class AuthService : IAuthService
             Id = u.Id,
             DisplayName = u.DisplayName
         }).ToList();
-    }
-
-    public async Task<string?> ResetPasswordAsync(string email)
-    {
-        var users = await _blobStorage.GetUsersAsync();
-        // Normalize email to lowercase for comparison
-        var normalizedEmail = email.ToLowerInvariant();
-        var user = users.FirstOrDefault(u =>
-            u.Id.Equals(normalizedEmail, StringComparison.OrdinalIgnoreCase) ||
-            (!string.IsNullOrEmpty(u.Username) && u.Username.ToLowerInvariant().Equals(normalizedEmail)));
-
-        if (user == null)
-        {
-            return null;
-        }
-
-        // Generate a new temporary password
-        var newPassword = GenerateTemporaryPassword();
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
-
-        // Update user in storage
-        await _blobStorage.SaveUsersAsync(users);
-
-        // In a real application, you would send this via email
-        // For now, we'll return it (not secure, but functional)
-        return newPassword;
-    }
-
-    private string GenerateTemporaryPassword()
-    {
-        // Generate a random 12-character password
-        const string chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
-        var random = new Random();
-        return new string(Enumerable.Repeat(chars, 12)
-            .Select(s => s[random.Next(s.Length)]).ToArray());
     }
 
     public async Task<string?> GenerateMagicLinkTokenAsync(string email)

@@ -1,15 +1,5 @@
 namespace Iris.Models;
 
-public class LoginRequest
-{
-    public string UserId { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
-}
-
-public class ForgotPasswordRequest
-{
-    public string Email { get; set; } = string.Empty;
-}
 
 public class RequestMagicLinkRequest
 {
@@ -44,14 +34,12 @@ public class CreateUserRequest
 {
     public string Username { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
     public bool IsAdmin { get; set; }
 }
 
 public class UpdateUserRequest
 {
     public string? DisplayName { get; set; }
-    public string? Password { get; set; }
     public bool? IsAdmin { get; set; }
 }
 

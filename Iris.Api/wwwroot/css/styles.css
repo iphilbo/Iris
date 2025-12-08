@@ -143,16 +143,6 @@ body {
     background: var(--accent-hover);
 }
 
-#forgotPasswordButton {
-    background: var(--bg-tertiary);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
-}
-
-#forgotPasswordButton:hover {
-    background: var(--border-color);
-}
-
 .error {
     margin-top: 1rem;
     padding: 0.75rem;

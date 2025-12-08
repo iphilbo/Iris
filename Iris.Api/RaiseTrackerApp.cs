@@ -173,42 +173,6 @@ public static class IrisApp
                 }
             });
 
-            endpoints.MapPost("/api/login", async (LoginRequest request, IAuthService authService, HttpContext context) =>
-            {
-                var user = await authService.ValidateUserAsync(request.UserId, request.Password);
-
-                if (user == null)
-                {
-                    return Results.Unauthorized();
-                }
-
-                // Clear rate limiting on successful login
-                if (context.Items.TryGetValue("RateLimitKey", out var keyObj) && keyObj is string key)
-                {
-                    RateLimitingMiddleware.ClearAttempts(key);
-                }
-
-                var session = new Session
-                {
-                    UserId = user.Id,
-                    DisplayName = user.DisplayName,
-                    IsAdmin = user.IsAdmin,
-                    IssuedAt = DateTime.UtcNow,
-                    ExpiresAt = DateTime.UtcNow.AddDays(7)
-                };
-
-                var token = authService.CreateSessionToken(session);
-
-                context.Response.Cookies.Append("AuthSession", token, new CookieOptions
-                {
-                    HttpOnly = true,
-                    Secure = true,
-                    SameSite = SameSiteMode.Strict,
-                    Expires = session.ExpiresAt
-                });
-
-                return Results.Ok(new { userId = user.Id, displayName = user.DisplayName, isAdmin = user.IsAdmin });
-            });
 
             endpoints.MapGet("/api/session", (HttpContext context, IAuthService authService) =>
             {
@@ -260,7 +224,6 @@ public static class IrisApp
                     Id = Guid.NewGuid().ToString(),
                     Username = request.Username.ToLowerInvariant(), // Store email in lowercase
                     DisplayName = request.DisplayName,
-                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
                     IsAdmin = request.IsAdmin
                 };
 
@@ -294,11 +257,6 @@ public static class IrisApp
                 if (!string.IsNullOrWhiteSpace(request.DisplayName))
                 {
                     user.DisplayName = request.DisplayName;
-                }
-
-                if (!string.IsNullOrWhiteSpace(request.Password))
-                {
-                    user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
                 }
 
                 if (request.IsAdmin.HasValue)

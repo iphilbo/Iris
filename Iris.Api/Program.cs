@@ -260,52 +260,6 @@ app.MapGet("/api/validate-magic-link", async (string token, IAuthService authSer
     }
 });
 
-app.MapPost("/api/forgot-password", async (ForgotPasswordRequest request, IAuthService authService, IBlobStorageService blobStorage, IEmailService emailService) =>
-{
-    try
-    {
-        // Debug: Check if user exists
-        var allUsers = await blobStorage.GetUsersAsync();
-        var normalizedEmail = request.Email.ToLowerInvariant();
-        var foundUser = allUsers.FirstOrDefault(u =>
-            u.Id.Equals(normalizedEmail, StringComparison.OrdinalIgnoreCase) ||
-            (!string.IsNullOrEmpty(u.Username) && u.Username.ToLowerInvariant().Equals(normalizedEmail)));
-
-        if (foundUser == null)
-        {
-            // Return generic message for security, but log for debugging
-            _ = SysProc.SysLogItAsync($"Password reset requested for email: {request.Email}, but user not found. Available users: {string.Join(", ", allUsers.Select(u => u.Username))}", "System");
-            return Results.Ok(new { message = "If an account with that email exists, a password reset email has been sent." });
-        }
-
-        var newPassword = await authService.ResetPasswordAsync(request.Email);
-
-        if (newPassword == null)
-        {
-            return Results.Ok(new { message = "If an account with that email exists, a password reset email has been sent." });
-        }
-
-        // Send password via email
-        var emailSent = await emailService.SendPasswordResetEmailAsync(request.Email, newPassword);
-
-        if (emailSent)
-        {
-            return Results.Ok(new { message = "A password reset email has been sent to your email address. Please check your inbox." });
-        }
-        else
-        {
-            // Email not configured or failed - return password in response as fallback (not ideal, but functional)
-            _ = SysProc.SysLogItAsync($"Warning: Email sending failed or not configured. Returning password in response for {request.Email}", "System");
-            return Results.Ok(new { message = $"Email sending is not configured. Your new temporary password is: {newPassword}. Please change it after logging in." });
-        }
-    }
-    catch (Exception ex)
-    {
-        _ = SysProc.SysLogItAsync($"Error in forgot-password: {ex.Message} | Stack trace: {ex.StackTrace}", "System");
-        return Results.Problem("An error occurred processing your request.");
-    }
-});
-
 app.MapGet("/api/session", (HttpContext context, IAuthService authService) =>
 {
     var cookie = context.Request.Cookies["AuthSession"];
@@ -399,7 +353,6 @@ app.MapPost("/api/users", async (CreateUserRequest request, IBlobStorageService 
         Id = Guid.NewGuid().ToString(),
         Username = request.Username.ToLowerInvariant(), // Store email in lowercase
         DisplayName = request.DisplayName,
-        PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password),
         IsAdmin = request.IsAdmin
     };
 
@@ -439,11 +392,6 @@ app.MapPut("/api/users/{id}", async (string id, JsonElement body, IBlobStorageSe
     if (!string.IsNullOrWhiteSpace(request.DisplayName))
     {
         user.DisplayName = request.DisplayName;
-    }
-
-    if (!string.IsNullOrWhiteSpace(request.Password))
-    {
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
     }
 
     if (request.IsAdmin.HasValue)

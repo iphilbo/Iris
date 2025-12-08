@@ -4,11 +4,9 @@ namespace Iris.Services;
 
 public interface IAuthService
 {
-    Task<User?> ValidateUserAsync(string userId, string password);
     string CreateSessionToken(Session session);
     Session? ValidateSessionToken(string token);
     Task<List<UserSummary>> GetUserSummariesAsync();
-    Task<string?> ResetPasswordAsync(string email);
     Task<string?> GenerateMagicLinkTokenAsync(string email);
     Task<User?> ValidateMagicLinkTokenAsync(string token);
 }

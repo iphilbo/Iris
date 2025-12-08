@@ -712,8 +712,6 @@ function openAddUserModal() {
     document.getElementById('userForm').reset();
     document.getElementById('userId').value = '';
     document.getElementById('username').disabled = false;
-    document.getElementById('password').required = true;
-    document.getElementById('passwordRequired').textContent = '*';
     document.getElementById('addUserModal').classList.remove('hidden');
 }
 
@@ -747,9 +745,6 @@ async function editUser(userId) {
         document.getElementById('username').value = user.username || '';
         document.getElementById('displayName').value = user.displayName || '';
         document.getElementById('isAdmin').checked = user.isAdmin || false;
-        document.getElementById('password').value = '';
-        document.getElementById('password').required = false;
-        document.getElementById('passwordRequired').textContent = '(leave blank to keep current)';
         document.getElementById('username').disabled = true;
         document.getElementById('addUserModal').classList.remove('hidden');
     } catch (error) {
@@ -763,7 +758,6 @@ async function handleUserSubmit(e) {
     const userId = document.getElementById('userId').value;
     const username = document.getElementById('username').value.trim();
     const displayName = document.getElementById('displayName').value.trim();
-    const password = document.getElementById('password').value;
     const isAdmin = document.getElementById('isAdmin').checked;
 
     // Validate email format
@@ -781,9 +775,6 @@ async function handleUserSubmit(e) {
                 displayName,
                 isAdmin
             };
-            if (password) {
-                body.password = password;
-            }
 
             const response = await fetch(`${API_BASE}/users/${editingUserId}`, {
                 method: 'PUT',
@@ -804,7 +795,7 @@ async function handleUserSubmit(e) {
             const response = await fetch(`${API_BASE}/users`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, displayName, password, isAdmin })
+                body: JSON.stringify({ username, displayName, isAdmin })
             });
 
             if (response.ok) {

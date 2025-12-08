@@ -26,7 +26,6 @@ public class IrisDbContext : DbContext
             entity.Property(e => e.Id).HasMaxLength(450);
             entity.Property(e => e.Username).HasMaxLength(256).IsRequired();
             entity.Property(e => e.DisplayName).HasMaxLength(256).IsRequired();
-            entity.Property(e => e.PasswordHash).IsRequired();
             entity.HasIndex(e => e.Username).IsUnique();
         });
 

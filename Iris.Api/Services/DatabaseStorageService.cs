@@ -231,7 +231,6 @@ public class DatabaseStorageService : IBlobStorageService
                 // Update existing user
                 existing.Username = user.Username;
                 existing.DisplayName = user.DisplayName;
-                existing.PasswordHash = user.PasswordHash;
                 existing.IsAdmin = user.IsAdmin;
             }
         }
