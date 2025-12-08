@@ -9,4 +9,6 @@ public interface IAuthService
     Session? ValidateSessionToken(string token);
     Task<List<UserSummary>> GetUserSummariesAsync();
     Task<string?> ResetPasswordAsync(string email);
+    Task<string?> GenerateMagicLinkTokenAsync(string email);
+    Task<User?> ValidateMagicLinkTokenAsync(string token);
 }

@@ -80,41 +80,94 @@ app.MapGet("/api/users", async (IBlobStorageService blobStorage, IAuthService au
     }
 });
 
-app.MapPost("/api/login", async (LoginRequest request, IAuthService authService, HttpContext context) =>
+// Request magic link - sends email with magic link
+app.MapPost("/api/request-magic-link", async (RequestMagicLinkRequest request, IAuthService authService, IEmailService emailService, HttpContext context) =>
 {
-    var user = await authService.ValidateUserAsync(request.UserId, request.Password);
-
-    if (user == null)
+    try
     {
-        return Results.Unauthorized();
+        // Generate magic link token
+        var token = await authService.GenerateMagicLinkTokenAsync(request.Email);
+
+        // Always return success message (don't reveal if user exists)
+        if (token != null)
+        {
+            // Get base URL from request
+            var baseUrl = $"{context.Request.Scheme}://{context.Request.Host}";
+
+            // Send magic link email
+            var emailSent = await emailService.SendMagicLinkEmailAsync(request.Email, token, baseUrl);
+
+            if (emailSent)
+            {
+                return Results.Ok(new { message = "A magic link has been sent to your email address. Please check your inbox." });
+            }
+            else
+            {
+                // Email not configured - for development, return the link directly
+                Console.WriteLine($"Warning: Email sending failed or not configured. Magic link for {request.Email}: {baseUrl}/api/validate-magic-link?token={token}");
+                return Results.Ok(new { message = $"Email sending is not configured. Your magic link: {baseUrl}/api/validate-magic-link?token={token}" });
+            }
+        }
+        else
+        {
+            // User doesn't exist, but return generic message for security
+            return Results.Ok(new { message = "If an account with that email exists, a magic link has been sent." });
+        }
     }
-
-    // Clear rate limiting on successful login
-    if (context.Items.TryGetValue("RateLimitKey", out var keyObj) && keyObj is string key)
+    catch (Exception ex)
     {
-        RateLimitingMiddleware.ClearAttempts(key);
+        Console.WriteLine($"Error in request-magic-link: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        return Results.Problem("An error occurred processing your request.");
     }
+});
 
-    var session = new Session
+// Validate magic link and create session
+app.MapGet("/api/validate-magic-link", async (string token, IAuthService authService, HttpContext context) =>
+{
+    try
     {
-        UserId = user.Id,
-        DisplayName = user.DisplayName,
-        IsAdmin = user.IsAdmin,
-        IssuedAt = DateTime.UtcNow,
-        ExpiresAt = DateTime.UtcNow.AddDays(7)
-    };
+        var user = await authService.ValidateMagicLinkTokenAsync(token);
 
-    var token = authService.CreateSessionToken(session);
+        if (user == null)
+        {
+            return Results.BadRequest(new { error = "Invalid or expired magic link" });
+        }
 
-    context.Response.Cookies.Append("AuthSession", token, new CookieOptions
+        // Clear rate limiting on successful login
+        if (context.Items.TryGetValue("RateLimitKey", out var keyObj) && keyObj is string key)
+        {
+            RateLimitingMiddleware.ClearAttempts(key);
+        }
+
+        var session = new Session
+        {
+            UserId = user.Id,
+            DisplayName = user.DisplayName,
+            IsAdmin = user.IsAdmin,
+            IssuedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddDays(7)
+        };
+
+        var sessionToken = authService.CreateSessionToken(session);
+
+        context.Response.Cookies.Append("AuthSession", sessionToken, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = true,
+            SameSite = SameSiteMode.Strict,
+            Expires = session.ExpiresAt
+        });
+
+        // Redirect to the app (or return success)
+        return Results.Redirect("/");
+    }
+    catch (Exception ex)
     {
-        HttpOnly = true,
-        Secure = true,
-        SameSite = SameSiteMode.Strict,
-        Expires = session.ExpiresAt
-    });
-
-    return Results.Ok(new { userId = user.Id, displayName = user.DisplayName, isAdmin = user.IsAdmin });
+        Console.WriteLine($"Error in validate-magic-link: {ex.Message}");
+        Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        return Results.Problem("An error occurred processing your request.");
+    }
 });
 
 app.MapPost("/api/forgot-password", async (ForgotPasswordRequest request, IAuthService authService, IBlobStorageService blobStorage, IEmailService emailService) =>

@@ -11,6 +11,16 @@ public class ForgotPasswordRequest
     public string Email { get; set; } = string.Empty;
 }
 
+public class RequestMagicLinkRequest
+{
+    public string Email { get; set; } = string.Empty;
+}
+
+public class ValidateMagicLinkRequest
+{
+    public string Token { get; set; } = string.Empty;
+}
+
 public class CreateInvestorRequest
 {
     public string Name { get; set; } = string.Empty;

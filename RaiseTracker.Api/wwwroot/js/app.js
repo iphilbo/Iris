@@ -116,46 +116,6 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
 
     const email = document.getElementById('emailInput').value.trim();
-    const password = document.getElementById('passwordInput').value;
-
-    if (!email || !password) {
-        showError('Please enter both email and password');
-        return;
-    }
-
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-        showError('Please enter a valid email address');
-        return;
-    }
-
-    try {
-        const response = await fetch(`${API_BASE}/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: email, password })
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-            currentUser = data;
-            document.getElementById('loginForm').reset();
-            document.getElementById('loginError').classList.add('hidden');
-            document.getElementById('loginSuccess').classList.add('hidden');
-            showApp();
-            await loadInvestors();
-        } else {
-            showError('Invalid email or password');
-        }
-    } catch (error) {
-        console.error('Login failed:', error);
-        showError('Login failed. Please try again.');
-    }
-});
-
-document.getElementById('forgotPasswordButton').addEventListener('click', async () => {
-    const email = document.getElementById('emailInput').value.trim();
 
     if (!email) {
         showError('Please enter your email address');
@@ -169,8 +129,13 @@ document.getElementById('forgotPasswordButton').addEventListener('click', async 
         return;
     }
 
+    // Disable button while processing
+    const loginButton = document.getElementById('loginButton');
+    loginButton.disabled = true;
+    loginButton.textContent = 'Sending...';
+
     try {
-        const response = await fetch(`${API_BASE}/forgot-password`, {
+        const response = await fetch(`${API_BASE}/request-magic-link`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ email })
@@ -178,14 +143,18 @@ document.getElementById('forgotPasswordButton').addEventListener('click', async 
 
         if (response.ok) {
             const result = await response.json();
-            showSuccess(result.message || 'Password reset email sent. Please check your inbox.');
+            showSuccess(result.message || 'Magic link sent! Please check your email.');
+            document.getElementById('emailInput').value = '';
         } else {
             const error = await response.json();
-            showError(error.error || 'Failed to send password reset. Please contact an administrator.');
+            showError(error.error || 'Failed to send magic link. Please try again.');
         }
     } catch (error) {
-        console.error('Forgot password failed:', error);
-        showError('Failed to process request. Please try again.');
+        console.error('Request magic link failed:', error);
+        showError('Failed to send magic link. Please try again.');
+    } finally {
+        loginButton.disabled = false;
+        loginButton.textContent = 'Send Magic Link';
     }
 });
 
