@@ -46,9 +46,17 @@ if (!string.IsNullOrEmpty(connectionString))
     SysProc.SetConnectionString(connectionString);
 }
 
-// Initialize blob storage
-var blobStorage = app.Services.GetRequiredService<IBlobStorageService>();
-await blobStorage.InitializeAsync();
+// Initialize blob storage (with error handling - don't fail startup if DB is temporarily unavailable)
+try
+{
+    var blobStorage = app.Services.GetRequiredService<IBlobStorageService>();
+    await blobStorage.InitializeAsync();
+}
+catch (Exception ex)
+{
+    // Log but don't fail startup - allows app to serve static files even if DB is down
+    _ = SysProc.SysLogItAsync($"Warning: Failed to initialize storage on startup: {ex.Message}", "System");
+}
 
 // Middleware
 app.UseCors();
@@ -65,20 +73,59 @@ app.UseStaticFiles();
 // Root route - serve the main HTML file
 app.MapGet("/", async (HttpContext context) =>
 {
-    var filePath = Path.Combine(app.Environment.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot"), "raise-tracker.html");
-    if (File.Exists(filePath))
+    try
     {
-        context.Response.ContentType = "text/html";
-        await context.Response.SendFileAsync(filePath);
+        // Try multiple possible locations for the HTML file
+        var possiblePaths = new List<string>();
+        
+        // 1. WebRootPath (standard location)
+        if (!string.IsNullOrEmpty(app.Environment.WebRootPath))
+        {
+            possiblePaths.Add(Path.Combine(app.Environment.WebRootPath, "raise-tracker.html"));
+        }
+        
+        // 2. Current directory wwwroot
+        possiblePaths.Add(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "raise-tracker.html"));
+        
+        // 3. App base path wwwroot
+        var appBase = AppContext.BaseDirectory;
+        possiblePaths.Add(Path.Combine(appBase, "wwwroot", "raise-tracker.html"));
+        
+        // 4. Parent directory wwwroot (in case of nested structure)
+        possiblePaths.Add(Path.Combine(Directory.GetParent(Directory.GetCurrentDirectory())?.FullName ?? "", "wwwroot", "raise-tracker.html"));
+        
+        string? foundPath = null;
+        foreach (var path in possiblePaths)
+        {
+            if (File.Exists(path))
+            {
+                foundPath = path;
+                break;
+            }
+        }
+        
+        if (foundPath != null)
+        {
+            context.Response.ContentType = "text/html";
+            await context.Response.SendFileAsync(foundPath);
+        }
+        else
+        {
+            context.Response.StatusCode = 500;
+            await context.Response.WriteAsync($"<html><body><h1>Application Error</h1><p>Could not find raise-tracker.html. Searched paths:<ul>{string.Join("", possiblePaths.Select(p => $"<li>{p}</li>"))}</ul></p></body></html>");
+        }
     }
-    else
+    catch (Exception ex)
     {
-        context.Response.StatusCode = 404;
-        await context.Response.WriteAsync("File not found");
+        context.Response.StatusCode = 500;
+        await context.Response.WriteAsync($"<html><body><h1>Application Error</h1><p>{ex.Message}</p></body></html>");
     }
 });
 
 // API Endpoints
+
+// Health check endpoint
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
 // Auth endpoints
 app.MapGet("/api/users", async (IBlobStorageService blobStorage, IAuthService authService, HttpContext context) =>
