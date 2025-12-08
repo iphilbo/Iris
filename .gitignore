@@ -107,6 +107,7 @@ appsettings.*.Production.json
 
 # Development configuration files (may contain secrets)
 # Note: Keep appsettings.Development.json template in repo, but actual secrets should use User Secrets or environment variables
+appsettings.Development.json
 
 # macOS
 .DS_Store
