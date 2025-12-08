@@ -88,6 +88,12 @@
                             </select>
                         </div>
                         <div class="filter-group">
+                            <label>Owner</label>
+                            <select id="filterOwner" onchange="applyFilters()">
+                                <option value="">All</option>
+                            </select>
+                        </div>
+                        <div class="filter-group">
                             <label>Sort by</label>
                             <select id="sortSelect" onchange="sortBySelect()">
                                 <option value="">None</option>
@@ -149,6 +155,12 @@
                                     <option value="Active">Active</option>
                                     <option value="Lost: code 1">Lost: code 1</option>
                                     <option value="Lost: Code 2">Lost: Code 2</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="owner">Owner</label>
+                                <select id="owner">
+                                    <option value="">None</option>
                                 </select>
                             </div>
                         </div>

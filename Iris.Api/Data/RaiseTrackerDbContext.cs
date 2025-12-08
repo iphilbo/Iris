@@ -42,6 +42,7 @@ public class IrisDbContext : DbContext
             entity.Property(e => e.Category).HasMaxLength(50).IsRequired();
             entity.Property(e => e.Stage).HasMaxLength(50).IsRequired();
             entity.Property(e => e.Status).HasMaxLength(50).IsRequired().HasDefaultValue("Active");
+            entity.Property(e => e.Owner).HasMaxLength(256);
             entity.Property(e => e.CommitAmount).HasColumnType("DECIMAL(18,2)");
             entity.Property(e => e.CreatedBy).HasMaxLength(450);
             entity.Property(e => e.UpdatedBy).HasMaxLength(450);

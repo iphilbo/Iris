@@ -13,6 +13,7 @@ let filters = {
     category: '',
     stage: '',
     status: '',
+    owner: '',
     openTasks: ''
 };
 
@@ -220,6 +221,7 @@ async function applyFilters() {
     filters.category = document.getElementById('filterCategory').value;
     filters.stage = document.getElementById('filterStage').value;
     filters.status = document.getElementById('filterStatus').value;
+    filters.owner = document.getElementById('filterOwner').value;
     filters.openTasks = document.getElementById('filterOpenTasks').value;
 
     // Apply basic filters first
@@ -227,8 +229,9 @@ async function applyFilters() {
         const categoryMatch = !filters.category || investor.category === filters.category;
         const stageMatch = !filters.stage || investor.stage === filters.stage;
         const statusMatch = !filters.status || (investor.status || 'Active') === filters.status;
+        const ownerMatch = !filters.owner || (investor.owner || '') === filters.owner;
 
-        return categoryMatch && stageMatch && statusMatch;
+        return categoryMatch && stageMatch && statusMatch && ownerMatch;
     });
 
     // Apply open tasks filter if needed
@@ -307,7 +310,43 @@ async function sortBySelect() {
 async function renderInvestors() {
     // Initialize filtered investors to all investors
     filteredInvestors = [...investors];
+    await populateOwnerDropdowns();
     await applyFilters();
+}
+
+async function populateOwnerDropdowns() {
+    try {
+        // Populate owner dropdown in form with user display names
+        const usersResponse = await fetch(`${API_BASE}/users`);
+        if (usersResponse.ok) {
+            const users = await usersResponse.json();
+            const ownerSelect = document.getElementById('owner');
+            const filterOwnerSelect = document.getElementById('filterOwner');
+            
+            // Clear existing options (except "None" and "All")
+            ownerSelect.innerHTML = '<option value="">None</option>';
+            filterOwnerSelect.innerHTML = '<option value="">All</option>';
+            
+            // Add user display names to form dropdown
+            users.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.displayName;
+                option.textContent = user.displayName;
+                ownerSelect.appendChild(option);
+            });
+            
+            // Get unique owner values from investors for filter dropdown
+            const uniqueOwners = [...new Set(investors.map(i => i.owner).filter(o => o))].sort();
+            uniqueOwners.forEach(owner => {
+                const option = document.createElement('option');
+                option.value = owner;
+                option.textContent = owner;
+                filterOwnerSelect.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Failed to populate owner dropdowns:', error);
+    }
 }
 
 async function renderFilteredInvestors() {
@@ -362,6 +401,7 @@ async function createInvestorCard(summary) {
                     <span>${escapeHtml(summary.stage)}</span>
                     <span>•</span>
                     <span>${escapeHtml(summary.status || 'Active')}</span>
+                    ${summary.owner ? `<span>•</span><span>Owner: ${escapeHtml(summary.owner)}</span>` : ''}
                     ${summary.commitAmount ? `<span>•</span><span>$${formatCurrency(summary.commitAmount)}</span>` : ''}
                 </div>
             </div>
@@ -417,6 +457,7 @@ async function handleInvestorSubmit(e) {
         category: document.getElementById('category').value,
         stage: document.getElementById('stage').value,
         status: document.getElementById('status').value,
+        owner: document.getElementById('owner').value || null,
         mainContact: document.getElementById('mainContact').value || null,
         contactEmail: document.getElementById('contactEmail').value || null,
         contactPhone: document.getElementById('contactPhone').value || null,
@@ -477,11 +518,14 @@ async function editInvestor(id) {
     const details = await loadInvestorDetails(id);
     if (!details) return;
 
+    await populateOwnerDropdowns();
+    
     editingInvestorId = id;
     document.getElementById('name').value = details.name;
     document.getElementById('category').value = details.category;
     document.getElementById('stage').value = details.stage;
     document.getElementById('status').value = details.status || 'Active';
+    document.getElementById('owner').value = details.owner || '';
     document.getElementById('mainContact').value = details.mainContact || '';
     document.getElementById('contactEmail').value = details.contactEmail || '';
     document.getElementById('contactPhone').value = details.contactPhone || '';
@@ -495,8 +539,9 @@ async function editInvestor(id) {
     openModal();
 }
 
-function openAddInvestorModal() {
+async function openAddInvestorModal() {
     resetForm();
+    await populateOwnerDropdowns();
     openModal();
 }
 

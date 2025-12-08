@@ -467,6 +467,7 @@ app.MapPost("/api/investors", async (CreateInvestorRequest request, IBlobStorage
         Category = request.Category,
         Stage = request.Stage,
         Status = request.Status ?? "Active",
+        Owner = request.Owner,
         CommitAmount = request.CommitAmount,
         Notes = request.Notes,
         CreatedBy = userId,
@@ -484,16 +485,17 @@ app.MapPost("/api/investors", async (CreateInvestorRequest request, IBlobStorage
 
     // Update index
     var index = await blobStorage.GetInvestorIndexAsync();
-    index.Add(new InvestorSummary
-    {
-        Id = investor.Id,
-        Name = investor.Name,
-        Stage = investor.Stage,
-        Category = investor.Category,
-        Status = investor.Status,
-        CommitAmount = investor.CommitAmount,
-        UpdatedAt = investor.UpdatedAt
-    });
+        index.Add(new InvestorSummary
+        {
+            Id = investor.Id,
+            Name = investor.Name,
+            Stage = investor.Stage,
+            Category = investor.Category,
+            Status = investor.Status,
+            Owner = investor.Owner,
+            CommitAmount = investor.CommitAmount,
+            UpdatedAt = investor.UpdatedAt
+        });
     await blobStorage.UpdateInvestorIndexAsync(index);
 
     return Results.Created($"/api/investors/{investor.Id}", investor);
@@ -519,6 +521,7 @@ app.MapPut("/api/investors/{id}", async (string id, JsonElement body, IBlobStora
         if (body.TryGetProperty("category", out var categoryProp)) existing.Category = categoryProp.GetString() ?? existing.Category;
         if (body.TryGetProperty("stage", out var stageProp)) existing.Stage = stageProp.GetString() ?? existing.Stage;
         if (body.TryGetProperty("status", out var statusProp)) existing.Status = statusProp.GetString() ?? existing.Status;
+        if (body.TryGetProperty("owner", out var ownerProp)) existing.Owner = ownerProp.GetString();
         if (body.TryGetProperty("commitAmount", out var amountProp))
         {
             if (amountProp.ValueKind == JsonValueKind.Number)
@@ -562,6 +565,7 @@ app.MapPut("/api/investors/{id}", async (string id, JsonElement body, IBlobStora
             indexItem.Stage = existing.Stage;
             indexItem.Category = existing.Category;
             indexItem.Status = existing.Status;
+            indexItem.Owner = existing.Owner;
             indexItem.CommitAmount = existing.CommitAmount;
             indexItem.UpdatedAt = existing.UpdatedAt;
             await blobStorage.UpdateInvestorIndexAsync(index);

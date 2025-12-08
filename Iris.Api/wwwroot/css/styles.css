@@ -648,6 +648,7 @@ main {
         opacity: 0;
         transform: translateY(-20px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -784,7 +785,7 @@ main {
     justify-content: space-between;
 }
 
-.user-card-header > div:first-child {
+.user-card-header>div:first-child {
     display: flex;
     flex-direction: column;
     gap: 0.25rem;

@@ -42,6 +42,7 @@ public class DatabaseStorageService : IBlobStorageService
                 Stage = i.Stage,
                 Category = i.Category,
                 Status = i.Status,
+                Owner = i.Owner,
                 CommitAmount = i.CommitAmount,
                 UpdatedAt = i.UpdatedAt
             })
@@ -105,6 +106,7 @@ public class DatabaseStorageService : IBlobStorageService
                 existing.Category = investor.Category;
                 existing.Stage = investor.Stage;
                 existing.Status = investor.Status;
+                existing.Owner = investor.Owner;
                 existing.CommitAmount = investor.CommitAmount;
                 existing.Notes = investor.Notes;
                 existing.UpdatedBy = investor.UpdatedBy;

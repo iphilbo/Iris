@@ -20,6 +20,7 @@ public class CreateInvestorRequest
     public string Category { get; set; } = string.Empty;
     public string Stage { get; set; } = string.Empty;
     public string? Status { get; set; }
+    public string? Owner { get; set; }
     public decimal? CommitAmount { get; set; }
     public string? Notes { get; set; }
 }
