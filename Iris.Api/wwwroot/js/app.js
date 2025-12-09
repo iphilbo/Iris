@@ -11,6 +11,7 @@ let sortColumn = null;
 let sortDirection = 'asc';
 let viewMode = localStorage.getItem('viewMode') || 'cards'; // 'cards' or 'list'
 let filters = {
+    nameSearch: '',
     category: '',
     stage: '',
     status: '',
@@ -260,10 +261,11 @@ async function loadInvestors() {
         const response = await fetch(`${API_BASE}/investors`);
         if (response.ok) {
             investors = await response.json();
-            // Reset filters and sort when loading new data
-            sortColumn = null;
-            sortDirection = 'asc';
-            document.getElementById('sortSelect').value = '';
+            // Preserve current sort state - don't reset it
+            // Only reset if this is the initial load (sortColumn is null)
+            if (sortColumn === null) {
+                document.getElementById('sortSelect').value = '';
+            }
             renderInvestors();
         } else if (response.status === 401) {
             showLogin();
@@ -287,6 +289,7 @@ async function loadInvestorDetails(id) {
 
 async function applyFilters() {
     // Get filter values
+    filters.nameSearch = document.getElementById('filterNameSearch').value.trim();
     filters.category = document.getElementById('filterCategory').value;
     filters.stage = document.getElementById('filterStage').value;
     filters.status = document.getElementById('filterStatus').value;
@@ -295,6 +298,14 @@ async function applyFilters() {
 
     // Apply basic filters first
     filteredInvestors = investors.filter(investor => {
+        // Name search filter (case-insensitive fuzzy match)
+        let nameMatch = true;
+        if (filters.nameSearch) {
+            const searchLower = filters.nameSearch.toLowerCase();
+            const investorName = (investor.name || '').toLowerCase();
+            nameMatch = investorName.includes(searchLower);
+        }
+
         // Category filter
         let categoryMatch = true;
         if (filters.category) {
@@ -337,29 +348,11 @@ async function applyFilters() {
             }
         }
 
-        return categoryMatch && stageMatch && statusMatch && ownerMatch;
+        return nameMatch && categoryMatch && stageMatch && statusMatch && ownerMatch;
     });
 
-    // Apply open tasks filter if needed
-    if (filters.openTasks) {
-        const investorsWithTaskInfo = await Promise.all(
-            filteredInvestors.map(async (investor) => {
-                const details = await loadInvestorDetails(investor.id);
-                const hasOpenTasks = details && details.tasks && details.tasks.some(task => !task.done);
-                return { investor, hasOpenTasks };
-            })
-        );
-
-        filteredInvestors = investorsWithTaskInfo
-            .filter(({ hasOpenTasks }) => {
-                if (filters.openTasks === 'yes') return hasOpenTasks;
-                if (filters.openTasks === 'no') return !hasOpenTasks;
-                return true;
-            })
-            .map(({ investor }) => investor);
-    }
-
-    // Apply sorting
+    // Apply sorting FIRST (before any slow async operations)
+    // This ensures the sort appears immediately
     if (sortColumn) {
         filteredInvestors.sort((a, b) => {
             let aVal = a[sortColumn];
@@ -395,7 +388,63 @@ async function applyFilters() {
         });
     }
 
+    // Render immediately with sorted data (before slow async operations)
     renderFilteredInvestors();
+
+    // Apply open tasks filter if needed (this is the slow part)
+    // Re-apply sort after filtering to maintain sort order
+    if (filters.openTasks) {
+        const investorsWithTaskInfo = await Promise.all(
+            filteredInvestors.map(async (investor) => {
+                const details = await loadInvestorDetails(investor.id);
+                const hasOpenTasks = details && details.tasks && details.tasks.some(task => !task.done);
+                return { investor, hasOpenTasks };
+            })
+        );
+
+        filteredInvestors = investorsWithTaskInfo
+            .filter(({ hasOpenTasks }) => {
+                if (filters.openTasks === 'yes') return hasOpenTasks;
+                if (filters.openTasks === 'no') return !hasOpenTasks;
+                return true;
+            })
+            .map(({ investor }) => investor);
+
+        // Re-apply sort after filtering by open tasks
+        if (sortColumn) {
+            filteredInvestors.sort((a, b) => {
+                let aVal = a[sortColumn];
+                let bVal = b[sortColumn];
+
+                if (aVal == null) aVal = '';
+                if (bVal == null) bVal = '';
+
+                if (sortColumn === 'updatedAt') {
+                    aVal = aVal ? new Date(aVal) : new Date(0);
+                    bVal = bVal ? new Date(bVal) : new Date(0);
+                }
+
+                if (sortColumn === 'commitAmount') {
+                    aVal = aVal || 0;
+                    bVal = bVal || 0;
+                }
+
+                if (sortColumn !== 'updatedAt' && sortColumn !== 'commitAmount') {
+                    aVal = String(aVal).toLowerCase();
+                    bVal = String(bVal).toLowerCase();
+                }
+
+                let comparison = 0;
+                if (aVal < bVal) comparison = -1;
+                if (aVal > bVal) comparison = 1;
+
+                return sortDirection === 'asc' ? comparison : -comparison;
+            });
+        }
+
+        // Re-render with final sorted and filtered data
+        renderFilteredInvestors();
+    }
 }
 
 async function sortBySelect() {
@@ -410,7 +459,13 @@ async function sortBySelect() {
         sortDirection = direction;
     }
 
-    await applyFilters();
+    // Apply filters and sorting without reloading data
+    // Only reload if we don't have investors loaded yet
+    if (investors.length === 0) {
+        await loadInvestors();
+    } else {
+        await applyFilters();
+    }
 }
 
 async function renderInvestors() {
@@ -496,28 +551,32 @@ async function renderFilteredInvestors() {
         `;
         list.appendChild(headerRow);
 
-        // Render list view rows
+        // Render lightweight list rows first (using summary data only)
         for (const investor of filteredInvestors) {
-            const row = await createInvestorListRow(investor);
+            const row = createInvestorListRowLightweight(investor);
             if (row) {
                 list.appendChild(row);
             }
         }
+
+        // Then enhance with details in the background (non-blocking)
+        enhanceListRowsWithDetails(filteredInvestors);
     } else {
-        // Render card view
+        // Render lightweight card view first
         for (const investor of filteredInvestors) {
-            const card = await createInvestorCard(investor);
+            const card = createInvestorCardLightweight(investor);
             if (card) {
                 list.appendChild(card);
             }
         }
+
+        // Then enhance with details in the background (non-blocking)
+        enhanceCardsWithDetails(filteredInvestors);
     }
 }
 
-async function createInvestorCard(summary) {
-    const details = await loadInvestorDetails(summary.id);
-    if (!details) return null;
-
+// Lightweight card creation (no details loaded)
+function createInvestorCardLightweight(summary) {
     const card = document.createElement('div');
     card.className = 'investor-card';
     card.dataset.investorId = summary.id;
@@ -538,7 +597,7 @@ async function createInvestorCard(summary) {
     card.innerHTML = `
         <div class="investor-header">
             <div class="investor-title">
-                <h3>${escapeHtml(details.name)}</h3>
+                <h3>${escapeHtml(summary.name)}</h3>
                 <div class="investor-meta">
                     <span>${escapeHtml(summary.category)}</span>
                     <span>•</span>
@@ -554,11 +613,11 @@ async function createInvestorCard(summary) {
                 <button class="btn btn-delete" onclick="deleteInvestor('${summary.id}')" aria-label="Delete investor" title="Delete">🗑️</button>
             </div>
         </div>
-        <div class="investor-details">
-            ${details.mainContact ? `<div class="detail-item"><span class="detail-label">Contact</span><span class="detail-value">${escapeHtml(details.mainContact)}</span></div>` : '<div class="detail-item"></div>'}
-            ${details.contactPhone ? `<div class="detail-item"><span class="detail-label">Phone</span><span class="detail-value">${escapeHtml(details.contactPhone)}</span></div>` : '<div class="detail-item"></div>'}
-            ${details.contactEmail ? `<div class="detail-item"><span class="detail-label">Email</span><span class="detail-value">${escapeHtml(details.contactEmail)}</span></div>` : '<div class="detail-item"></div>'}
-            ${details.notes ? `<div class="detail-item full-width"><span class="detail-label">Notes</span><span class="detail-value">${escapeHtml(details.notes)}</span></div>` : ''}
+        <div class="investor-details" data-investor-id="${summary.id}">
+            <div class="detail-item"><span class="detail-label">Contact</span><span class="detail-value">Loading...</span></div>
+            <div class="detail-item"><span class="detail-label">Phone</span><span class="detail-value">Loading...</span></div>
+            <div class="detail-item"><span class="detail-label">Email</span><span class="detail-value">Loading...</span></div>
+            <div class="detail-item full-width"><span class="detail-label">Notes</span><span class="detail-value">Loading...</span></div>
         </div>
         <div class="tasks-section">
             <div class="tasks-header">
@@ -569,9 +628,47 @@ async function createInvestorCard(summary) {
         </div>
     `;
 
-    renderTasks(card, details.tasks || [], summary.id);
-
+    // Don't render tasks here - they'll be loaded by enhanceCardsWithDetails
     return card;
+}
+
+// Lightweight list row creation (no details loaded)
+function createInvestorListRowLightweight(summary) {
+    const row = document.createElement('div');
+    row.className = 'investor-list-row';
+    row.dataset.investorId = summary.id;
+
+    // Make row clickable to open full card
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', (e) => {
+        // Don't trigger if clicking on action buttons
+        if (!e.target.closest('.row-actions')) {
+            editInvestor(summary.id);
+        }
+    });
+
+    // Lightweight version - just summary data, contact/notes/tasks will be loaded later
+    row.innerHTML = `
+        <div class="row-cell row-investor">
+            <strong>${escapeHtml(summary.name)}</strong>
+        </div>
+        <div class="row-cell row-tags">
+            <span class="tag">${escapeHtml(summary.category)}</span>
+            ${summary.stage ? `<span class="tag">${escapeHtml(summary.stage)}</span>` : ''}
+        </div>
+        <div class="row-cell row-stage">${escapeHtml(summary.stage || '')}</div>
+        <div class="row-cell row-status">${escapeHtml(summary.status || '—')}</div>
+        <div class="row-cell row-owner">${escapeHtml(summary.owner || '')}</div>
+        <div class="row-cell row-contact" data-investor-id="${summary.id}">Loading...</div>
+        <div class="row-cell row-notes" data-investor-id="${summary.id}">Loading...</div>
+        <div class="row-cell row-tasks" data-investor-id="${summary.id}">Loading...</div>
+        <div class="row-cell row-actions" onclick="event.stopPropagation()">
+            <button class="btn btn-edit" onclick="editInvestor('${summary.id}')" aria-label="Edit investor" title="Edit">✏️</button>
+            <button class="btn btn-delete" onclick="deleteInvestor('${summary.id}')" aria-label="Delete investor" title="Delete">🗑️</button>
+        </div>
+    `;
+
+    return row;
 }
 
 async function createInvestorListRow(summary) {
@@ -617,6 +714,95 @@ async function createInvestorListRow(summary) {
     `;
 
     return row;
+}
+
+// Enhance list rows with details in the background
+async function enhanceListRowsWithDetails(investors) {
+    // Process in batches to avoid overwhelming the browser
+    const batchSize = 10;
+    for (let i = 0; i < investors.length; i += batchSize) {
+        const batch = investors.slice(i, i + batchSize);
+        await Promise.all(batch.map(async (investor) => {
+            const row = document.querySelector(`.investor-list-row[data-investor-id="${investor.id}"]`);
+            if (!row) return;
+
+            try {
+                const details = await loadInvestorDetails(investor.id);
+                if (!details) return;
+
+                const openTasksCount = (details.tasks || []).filter(t => !t.done).length;
+                const notesSnippet = details.notes ? (details.notes.length > 50 ? details.notes.substring(0, 50) + '...' : details.notes) : '';
+
+                // Update contact cell
+                const contactCell = row.querySelector('.row-contact[data-investor-id]');
+                if (contactCell) {
+                    contactCell.textContent = details.mainContact || '';
+                    contactCell.removeAttribute('data-investor-id');
+                }
+
+                // Update notes cell
+                const notesCell = row.querySelector('.row-notes[data-investor-id]');
+                if (notesCell) {
+                    notesCell.textContent = notesSnippet;
+                    notesCell.title = details.notes || '';
+                    notesCell.removeAttribute('data-investor-id');
+                }
+
+                // Update tasks cell
+                const tasksCell = row.querySelector('.row-tasks[data-investor-id]');
+                if (tasksCell) {
+                    tasksCell.innerHTML = openTasksCount > 0 ? `<span class="task-badge">🔔 ${openTasksCount}</span>` : '';
+                    tasksCell.removeAttribute('data-investor-id');
+                }
+            } catch (error) {
+                console.error(`Error enhancing row for ${investor.id}:`, error);
+            }
+        }));
+
+        // Small delay between batches to keep UI responsive
+        if (i + batchSize < investors.length) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
+    }
+}
+
+// Enhance cards with details in the background
+async function enhanceCardsWithDetails(investors) {
+    // Process in batches to avoid overwhelming the browser
+    const batchSize = 5;
+    for (let i = 0; i < investors.length; i += batchSize) {
+        const batch = investors.slice(i, i + batchSize);
+        await Promise.all(batch.map(async (investor) => {
+            const card = document.querySelector(`.investor-card[data-investor-id="${investor.id}"]`);
+            if (!card) return;
+
+            try {
+                const details = await loadInvestorDetails(investor.id);
+                if (!details) return;
+
+                const detailsContainer = card.querySelector('.investor-details[data-investor-id]');
+                if (detailsContainer) {
+                    detailsContainer.innerHTML = `
+                        ${details.mainContact ? `<div class="detail-item"><span class="detail-label">Contact</span><span class="detail-value">${escapeHtml(details.mainContact)}</span></div>` : '<div class="detail-item"></div>'}
+                        ${details.contactPhone ? `<div class="detail-item"><span class="detail-label">Phone</span><span class="detail-value">${escapeHtml(details.contactPhone)}</span></div>` : '<div class="detail-item"></div>'}
+                        ${details.contactEmail ? `<div class="detail-item"><span class="detail-label">Email</span><span class="detail-value">${escapeHtml(details.contactEmail)}</span></div>` : '<div class="detail-item"></div>'}
+                        ${details.notes ? `<div class="detail-item full-width"><span class="detail-label">Notes</span><span class="detail-value">${escapeHtml(details.notes)}</span></div>` : ''}
+                    `;
+                    detailsContainer.removeAttribute('data-investor-id');
+                }
+
+                // Render tasks
+                renderTasks(card, details.tasks || [], investor.id);
+            } catch (error) {
+                console.error(`Error enhancing card for ${investor.id}:`, error);
+            }
+        }));
+
+        // Small delay between batches to keep UI responsive
+        if (i + batchSize < investors.length) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+        }
+    }
 }
 
 function renderTasks(card, tasks, investorId) {

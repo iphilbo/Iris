@@ -61,6 +61,10 @@
                 <div class="filter-sort-bar">
                     <div class="filter-row">
                         <div class="filter-group">
+                            <label>Search</label>
+                            <input type="text" id="filterNameSearch" placeholder="Search by name..." oninput="applyFilters()">
+                        </div>
+                        <div class="filter-group">
                             <label>Category</label>
                             <select id="filterCategory" onchange="applyFilters()">
                                 <option value="">All</option>

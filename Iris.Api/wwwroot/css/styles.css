@@ -394,6 +394,24 @@ main {
     border-color: var(--accent);
 }
 
+.filter-group input[type="text"] {
+    padding: 0.35rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    font-family: inherit;
+    width: 100%;
+    box-sizing: border-box;
+    height: 2.1rem; /* Match select height */
+}
+
+.filter-group input[type="text"]:focus {
+    outline: none;
+    border-color: var(--accent);
+}
+
 .investors-list {
     display: grid;
     gap: 1rem;
