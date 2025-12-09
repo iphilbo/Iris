@@ -325,7 +325,7 @@ public static class IrisApp
                     ContactPhone = request.ContactPhone,
                     Category = request.Category,
                     Stage = request.Stage,
-                    Status = request.Status ?? "Active",
+                    Status = request.Status ?? string.Empty,
                     CommitAmount = request.CommitAmount,
                     Notes = request.Notes,
                     CreatedBy = userId,

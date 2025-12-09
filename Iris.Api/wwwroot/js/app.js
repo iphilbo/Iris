@@ -9,6 +9,7 @@ let filteredInvestors = [];
 let editingInvestorId = null;
 let sortColumn = null;
 let sortDirection = 'asc';
+let viewMode = localStorage.getItem('viewMode') || 'cards'; // 'cards' or 'list'
 let filters = {
     category: '',
     stage: '',
@@ -20,6 +21,7 @@ let filters = {
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
     initializeTheme();
+    initializeViewMode();
     checkSession();
     setupEventListeners();
 });
@@ -28,34 +30,99 @@ document.addEventListener('DOMContentLoaded', () => {
 function initializeTheme() {
     const savedTheme = localStorage.getItem('theme') || 'light';
     document.documentElement.setAttribute('data-theme', savedTheme);
-    updateThemeIcon(savedTheme);
+    updateThemeButtons(savedTheme);
 }
 
-function toggleTheme() {
-    const currentTheme = document.documentElement.getAttribute('data-theme');
-    const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', newTheme);
-    localStorage.setItem('theme', newTheme);
-    updateThemeIcon(newTheme);
+function toggleTheme(newTheme) {
+    const theme = newTheme || (document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+    updateThemeButtons(theme);
 }
 
-function updateThemeIcon(theme) {
-    const icon = document.getElementById('themeIcon');
-    icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+function updateThemeButtons(theme) {
+    const lightBtn = document.getElementById('themeLight');
+    const darkBtn = document.getElementById('themeDark');
+
+    if (lightBtn && darkBtn) {
+        if (theme === 'light') {
+            lightBtn.classList.add('active');
+            darkBtn.classList.remove('active');
+        } else {
+            darkBtn.classList.add('active');
+            lightBtn.classList.remove('active');
+        }
+    }
+}
+
+// View Mode Management
+function initializeViewMode() {
+    const savedViewMode = localStorage.getItem('viewMode') || 'cards';
+    viewMode = savedViewMode;
+    updateViewButtons(viewMode);
+    // Apply class will happen when investors are rendered
+}
+
+function toggleViewMode(newMode) {
+    viewMode = newMode || (viewMode === 'cards' ? 'list' : 'cards');
+    localStorage.setItem('viewMode', viewMode);
+    updateViewButtons(viewMode);
+    const investorsList = document.getElementById('investorsList');
+    if (investorsList) {
+        investorsList.className = viewMode === 'list' ? 'investors-list list-view' : 'investors-list';
+    }
+    // Re-render investors with new view mode
+    if (filteredInvestors.length > 0) {
+        renderFilteredInvestors();
+    }
+}
+
+function updateViewButtons(mode) {
+    const cardsBtn = document.getElementById('viewCards');
+    const listBtn = document.getElementById('viewList');
+
+    if (cardsBtn && listBtn) {
+        if (mode === 'cards') {
+            cardsBtn.classList.add('active');
+            listBtn.classList.remove('active');
+        } else {
+            listBtn.classList.add('active');
+            cardsBtn.classList.remove('active');
+        }
+    }
 }
 
 // Session Management
 async function checkSession() {
     try {
+        // First try to get existing session
         const response = await fetch(`${API_BASE}/session`);
         if (response.ok) {
             const data = await response.json();
             currentUser = data;
             showApp();
             loadInvestors();
-        } else {
-            showLogin();
+            return;
         }
+
+        // If no session and running locally (localhost), try dev auto-login
+        if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+            try {
+                const devResponse = await fetch(`${API_BASE}/dev-auto-login`);
+                if (devResponse.ok) {
+                    const devData = await devResponse.json();
+                    currentUser = devData;
+                    console.log('Development mode: Auto-logged in as', devData.displayName);
+                    showApp();
+                    loadInvestors();
+                    return;
+                }
+            } catch (devError) {
+                console.log('Dev auto-login not available, showing login screen');
+            }
+        }
+
+        showLogin();
     } catch (error) {
         console.error('Session check failed:', error);
         showLogin();
@@ -86,11 +153,13 @@ function showApp() {
 
 // Event Listeners
 function setupEventListeners() {
-    document.getElementById('themeToggle').addEventListener('click', toggleTheme);
+    document.getElementById('viewCards').addEventListener('click', () => toggleViewMode('cards'));
+    document.getElementById('viewList').addEventListener('click', () => toggleViewMode('list'));
+    document.getElementById('themeLight').addEventListener('click', () => toggleTheme('light'));
+    document.getElementById('themeDark').addEventListener('click', () => toggleTheme('dark'));
     document.getElementById('logoutButton').addEventListener('click', logout);
     document.getElementById('addInvestorButton').addEventListener('click', openAddInvestorModal);
     document.getElementById('investorForm').addEventListener('submit', handleInvestorSubmit);
-    document.getElementById('cancelEditButton').addEventListener('click', cancelEdit);
     document.getElementById('cancelModalButton').addEventListener('click', closeModal);
     document.getElementById('modalClose').addEventListener('click', closeModal);
     document.getElementById('modalOverlay').addEventListener('click', closeModal);
@@ -226,9 +295,37 @@ async function applyFilters() {
 
     // Apply basic filters first
     filteredInvestors = investors.filter(investor => {
-        const categoryMatch = !filters.category || investor.category === filters.category;
-        const stageMatch = !filters.stage || investor.stage === filters.stage;
-        const statusMatch = !filters.status || (investor.status || 'Active') === filters.status;
+        // Category filter
+        let categoryMatch = true;
+        if (filters.category) {
+            if (filters.category === '__BLANK__') {
+                categoryMatch = !investor.category || investor.category === '';
+            } else {
+                categoryMatch = investor.category === filters.category;
+            }
+        }
+
+        // Stage filter
+        let stageMatch = true;
+        if (filters.stage) {
+            if (filters.stage === '__BLANK__') {
+                stageMatch = !investor.stage || investor.stage === '';
+            } else {
+                stageMatch = investor.stage === filters.stage;
+            }
+        }
+
+        // Status filter
+        let statusMatch = true;
+        if (filters.status) {
+            if (filters.status === '__BLANK__') {
+                statusMatch = !investor.status || investor.status === '';
+            } else {
+                statusMatch = (investor.status || '') === filters.status;
+            }
+        }
+
+        // Owner filter
         let ownerMatch = true;
         if (filters.owner) {
             if (filters.owner === '__NONE__') {
@@ -320,6 +417,11 @@ async function renderInvestors() {
     // Initialize filtered investors to all investors
     filteredInvestors = [...investors];
     await populateOwnerDropdowns();
+    // Apply view mode class
+    const investorsList = document.getElementById('investorsList');
+    if (investorsList) {
+        investorsList.className = viewMode === 'list' ? 'investors-list list-view' : 'investors-list';
+    }
     await applyFilters();
 }
 
@@ -331,17 +433,17 @@ async function populateOwnerDropdowns() {
             const users = await usersResponse.json();
             const ownerSelect = document.getElementById('owner');
             const filterOwnerSelect = document.getElementById('filterOwner');
-            
+
             // Clear existing options (except "None" and "All")
             ownerSelect.innerHTML = '<option value="">None</option>';
             filterOwnerSelect.innerHTML = '<option value="">All</option>';
-            
+
             // Add "None" option at the top of filter dropdown for filtering investors without owners
             const noneOption = document.createElement('option');
             noneOption.value = '__NONE__';
             noneOption.textContent = 'None';
             filterOwnerSelect.appendChild(noneOption);
-            
+
             // Add user display names to form dropdown
             users.forEach(user => {
                 const option = document.createElement('option');
@@ -349,7 +451,7 @@ async function populateOwnerDropdowns() {
                 option.textContent = user.displayName;
                 ownerSelect.appendChild(option);
             });
-            
+
             // Get unique owner values from investors for filter dropdown
             const uniqueOwners = [...new Set(investors.map(i => i.owner).filter(o => o))].sort();
             uniqueOwners.forEach(owner => {
@@ -377,10 +479,37 @@ async function renderFilteredInvestors() {
         return;
     }
 
-    for (const investor of filteredInvestors) {
-        const card = await createInvestorCard(investor);
-        if (card) {
-            list.appendChild(card);
+    if (viewMode === 'list') {
+        // Add header row for list view
+        const headerRow = document.createElement('div');
+        headerRow.className = 'investor-list-header';
+        headerRow.innerHTML = `
+            <div class="row-cell row-investor">Investor</div>
+            <div class="row-cell row-tags">Tags</div>
+            <div class="row-cell row-stage">Stage</div>
+            <div class="row-cell row-status">Status</div>
+            <div class="row-cell row-owner">Owner</div>
+            <div class="row-cell row-contact">Contact</div>
+            <div class="row-cell row-notes">Notes</div>
+            <div class="row-cell row-tasks">Tasks</div>
+            <div class="row-cell row-actions">Actions</div>
+        `;
+        list.appendChild(headerRow);
+
+        // Render list view rows
+        for (const investor of filteredInvestors) {
+            const row = await createInvestorListRow(investor);
+            if (row) {
+                list.appendChild(row);
+            }
+        }
+    } else {
+        // Render card view
+        for (const investor of filteredInvestors) {
+            const card = await createInvestorCard(investor);
+            if (card) {
+                list.appendChild(card);
+            }
         }
     }
 }
@@ -415,7 +544,7 @@ async function createInvestorCard(summary) {
                     <span>•</span>
                     <span>${escapeHtml(summary.stage)}</span>
                     <span>•</span>
-                    <span>${escapeHtml(summary.status || 'Active')}</span>
+                    <span>${escapeHtml(summary.status || '—')}</span>
                     ${summary.owner ? `<span>•</span><span>Owner: ${escapeHtml(summary.owner)}</span>` : ''}
                     ${summary.commitAmount ? `<span>•</span><span>$${formatCurrency(summary.commitAmount)}</span>` : ''}
                 </div>
@@ -426,9 +555,9 @@ async function createInvestorCard(summary) {
             </div>
         </div>
         <div class="investor-details">
-            ${details.mainContact ? `<div class="detail-item"><span class="detail-label">Contact</span><span class="detail-value">${escapeHtml(details.mainContact)}</span></div>` : ''}
-            ${details.contactEmail ? `<div class="detail-item"><span class="detail-label">Email</span><span class="detail-value">${escapeHtml(details.contactEmail)}</span></div>` : ''}
-            ${details.contactPhone ? `<div class="detail-item"><span class="detail-label">Phone</span><span class="detail-value">${escapeHtml(details.contactPhone)}</span></div>` : ''}
+            ${details.mainContact ? `<div class="detail-item"><span class="detail-label">Contact</span><span class="detail-value">${escapeHtml(details.mainContact)}</span></div>` : '<div class="detail-item"></div>'}
+            ${details.contactPhone ? `<div class="detail-item"><span class="detail-label">Phone</span><span class="detail-value">${escapeHtml(details.contactPhone)}</span></div>` : '<div class="detail-item"></div>'}
+            ${details.contactEmail ? `<div class="detail-item"><span class="detail-label">Email</span><span class="detail-value">${escapeHtml(details.contactEmail)}</span></div>` : '<div class="detail-item"></div>'}
             ${details.notes ? `<div class="detail-item full-width"><span class="detail-label">Notes</span><span class="detail-value">${escapeHtml(details.notes)}</span></div>` : ''}
         </div>
         <div class="tasks-section">
@@ -445,6 +574,51 @@ async function createInvestorCard(summary) {
     return card;
 }
 
+async function createInvestorListRow(summary) {
+    const details = await loadInvestorDetails(summary.id);
+    if (!details) return null;
+
+    const openTasksCount = (details.tasks || []).filter(t => !t.done).length;
+    const notesSnippet = details.notes ? (details.notes.length > 50 ? details.notes.substring(0, 50) + '...' : details.notes) : '';
+
+    const row = document.createElement('div');
+    row.className = 'investor-list-row';
+    row.dataset.investorId = summary.id;
+
+    // Make row clickable to open full card
+    row.style.cursor = 'pointer';
+    row.addEventListener('click', (e) => {
+        // Don't trigger if clicking on action buttons
+        if (!e.target.closest('.row-actions')) {
+            editInvestor(summary.id);
+        }
+    });
+
+    row.innerHTML = `
+        <div class="row-cell row-investor">
+            <strong>${escapeHtml(details.name)}</strong>
+        </div>
+        <div class="row-cell row-tags">
+            <span class="tag">${escapeHtml(summary.category)}</span>
+            ${summary.stage ? `<span class="tag">${escapeHtml(summary.stage)}</span>` : ''}
+        </div>
+        <div class="row-cell row-stage">${escapeHtml(summary.stage || '')}</div>
+        <div class="row-cell row-status">${escapeHtml(summary.status || '—')}</div>
+        <div class="row-cell row-owner">${escapeHtml(summary.owner || '')}</div>
+        <div class="row-cell row-contact">${escapeHtml(details.mainContact || '')}</div>
+        <div class="row-cell row-notes" title="${escapeHtml(details.notes || '')}">${escapeHtml(notesSnippet)}</div>
+        <div class="row-cell row-tasks">
+            ${openTasksCount > 0 ? `<span class="task-badge">🔔 ${openTasksCount}</span>` : ''}
+        </div>
+        <div class="row-cell row-actions" onclick="event.stopPropagation()">
+            <button class="btn btn-edit" onclick="editInvestor('${summary.id}')" aria-label="Edit investor" title="Edit">✏️</button>
+            <button class="btn btn-delete" onclick="deleteInvestor('${summary.id}')" aria-label="Delete investor" title="Delete">🗑️</button>
+        </div>
+    `;
+
+    return row;
+}
+
 function renderTasks(card, tasks, investorId) {
     const tasksList = card.querySelector(`#tasks-${investorId}`);
     tasksList.innerHTML = '';
@@ -452,10 +626,10 @@ function renderTasks(card, tasks, investorId) {
     tasks.forEach(task => {
         const taskItem = document.createElement('div');
         taskItem.className = `task-item ${task.done ? 'done' : ''}`;
+        const dueDateText = task.dueDate ? ` ${task.dueDate}` : '';
         taskItem.innerHTML = `
             <input type="checkbox" ${task.done ? 'checked' : ''} onchange="toggleTask('${investorId}', '${task.id}', this.checked)">
-            <span class="task-due">${task.dueDate || ''}</span>
-            <span class="task-description">${escapeHtml(task.description)}</span>
+            <span class="task-description">${escapeHtml(task.description)}<span class="task-due">${dueDateText}</span></span>
             <div class="task-actions">
                 <button class="btn-small" onclick="deleteTask('${investorId}', '${task.id}')">Delete</button>
             </div>
@@ -539,7 +713,7 @@ async function editInvestor(id) {
     document.getElementById('name').value = details.name;
     document.getElementById('category').value = details.category;
     document.getElementById('stage').value = details.stage;
-    document.getElementById('status').value = details.status || 'Active';
+    document.getElementById('status').value = details.status || '';
     document.getElementById('owner').value = details.owner || '';
     document.getElementById('mainContact').value = details.mainContact || '';
     document.getElementById('contactEmail').value = details.contactEmail || '';
@@ -547,7 +721,6 @@ async function editInvestor(id) {
     document.getElementById('commitAmount').value = details.commitAmount || '';
     document.getElementById('notes').value = details.notes || '';
 
-    document.getElementById('cancelEditButton').classList.remove('hidden');
     document.getElementById('modalTitle').textContent = 'Edit Investor';
     document.getElementById('submitButton').textContent = 'Update Investor';
 
@@ -571,15 +744,10 @@ function closeModal() {
     resetForm();
 }
 
-function cancelEdit() {
-    editingInvestorId = null;
-    closeModal();
-}
 
 function resetForm() {
     document.getElementById('investorForm').reset();
     editingInvestorId = null;
-    document.getElementById('cancelEditButton').classList.add('hidden');
     document.getElementById('modalTitle').textContent = 'Add New Investor';
     document.getElementById('submitButton').textContent = 'Add Investor';
 }

@@ -32,9 +32,22 @@
         <header>
             <h1>Iris - RaiseTracker</h1>
             <div class="header-controls">
-                <button id="themeToggle" class="theme-toggle" aria-label="Toggle theme">
-                    <span id="themeIcon">🌙</span>
-                </button>
+                <div class="view-toggle-group">
+                    <button id="viewCards" class="view-toggle-btn" data-view="cards" aria-label="Card view" title="Card view">
+                        <span>📋</span> Cards
+                    </button>
+                    <button id="viewList" class="view-toggle-btn" data-view="list" aria-label="List view" title="List view">
+                        <span>📄</span> List
+                    </button>
+                </div>
+                <div class="view-toggle-group">
+                    <button id="themeLight" class="view-toggle-btn" data-theme="light" aria-label="Light theme" title="Light theme">
+                        <span>☀️</span> Light
+                    </button>
+                    <button id="themeDark" class="view-toggle-btn" data-theme="dark" aria-label="Dark theme" title="Dark theme">
+                        <span>🌙</span> Dark
+                    </button>
+                </div>
                 <span id="userDisplay"></span>
                 <button id="addInvestorButton" class="btn-header">Add Investor</button>
                 <button id="manageUsersButton" class="btn-header hidden">Manage Users</button>
@@ -51,15 +64,19 @@
                             <label>Category</label>
                             <select id="filterCategory" onchange="applyFilters()">
                                 <option value="">All</option>
+                                <option value="__BLANK__">Blank</option>
                                 <option value="existing">Existing</option>
                                 <option value="known">Known</option>
                                 <option value="new">New</option>
+                                <option value="Strategic">Strategic</option>
+                                <option value="Financial">Financial</option>
                             </select>
                         </div>
                         <div class="filter-group">
                             <label>Stage</label>
                             <select id="filterStage" onchange="applyFilters()">
                                 <option value="">All</option>
+                                <option value="__BLANK__">Blank</option>
                                 <option value="target">Target</option>
                                 <option value="contacted">Contacted</option>
                                 <option value="NDA">NDA</option>
@@ -74,9 +91,17 @@
                             <label>Status</label>
                             <select id="filterStatus" onchange="applyFilters()">
                                 <option value="">All</option>
-                                <option value="Active">Active</option>
-                                <option value="Lost: code 1">Lost: code 1</option>
-                                <option value="Lost: Code 2">Lost: Code 2</option>
+                                <option value="__BLANK__">Blank</option>
+                                <option value="Interested: Move to NDA">Interested: Move to NDA</option>
+                                <option value="Interested: Pending Paperwork">Interested: Pending Paperwork</option>
+                                <option value="Confirmed Participant">Confirmed Participant</option>
+                                <option value="Active: In Discussions">Active: In Discussions</option>
+                                <option value="No: Was just fishing">No: Was just fishing</option>
+                                <option value="No: Too early/small">No: Too early/small</option>
+                                <option value="No: Non-believer">No: Non-believer</option>
+                                <option value="No: Scale Concerns">No: Scale Concerns</option>
+                                <option value="No: Sales Cycle Concerns">No: Sales Cycle Concerns</option>
+                                <option value="No: Not interested/Other">No: Not interested/Other</option>
                             </select>
                         </div>
                         <div class="filter-group">
@@ -97,10 +122,10 @@
                             <label>Sort by</label>
                             <select id="sortSelect" onchange="sortBySelect()">
                                 <option value="">None</option>
-                                <option value="name-desc">Name</option>
-                                <option value="category-desc">Category</option>
-                                <option value="stage-desc">Stage</option>
-                                <option value="status-desc">Status</option>
+                                <option value="name-asc">Name</option>
+                                <option value="category-asc">Category</option>
+                                <option value="stage-asc">Stage</option>
+                                <option value="status-asc">Status</option>
                                 <option value="commitAmount-desc">Amount</option>
                                 <option value="updatedAt-desc">Updated</option>
                             </select>
@@ -133,6 +158,8 @@
                                     <option value="existing">Existing</option>
                                     <option value="known">Known</option>
                                     <option value="new">New</option>
+                                    <option value="Strategic">Strategic</option>
+                                    <option value="Financial">Financial</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -152,9 +179,16 @@
                             <div class="form-group">
                                 <label for="status">Status *</label>
                                 <select id="status" required>
-                                    <option value="Active">Active</option>
-                                    <option value="Lost: code 1">Lost: code 1</option>
-                                    <option value="Lost: Code 2">Lost: Code 2</option>
+                                    <option value="Interested: Move to NDA">Interested: Move to NDA</option>
+                                    <option value="Interested: Pending Paperwork">Interested: Pending Paperwork</option>
+                                    <option value="Confirmed Participant">Confirmed Participant</option>
+                                    <option value="Active: In Discussions">Active: In Discussions</option>
+                                    <option value="No: Was just fishing">No: Was just fishing</option>
+                                    <option value="No: Too early/small">No: Too early/small</option>
+                                    <option value="No: Non-believer">No: Non-believer</option>
+                                    <option value="No: Scale Concerns">No: Scale Concerns</option>
+                                    <option value="No: Sales Cycle Concerns">No: Sales Cycle Concerns</option>
+                                    <option value="No: Not interested/Other">No: Not interested/Other</option>
                                 </select>
                             </div>
                             <div class="form-group">
@@ -190,7 +224,6 @@
                         </div>
                         <div class="modal-actions">
                             <button type="submit" id="submitButton">Add Investor</button>
-                            <button type="button" id="cancelEditButton" class="hidden">Cancel Edit</button>
                             <button type="button" id="cancelModalButton">Cancel</button>
                         </div>
                     </form>

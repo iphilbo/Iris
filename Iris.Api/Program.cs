@@ -276,6 +276,52 @@ app.MapGet("/api/validate-magic-link", async (string token, IAuthService authSer
     }
 });
 
+// Development bypass endpoint - only works in Development environment
+app.MapGet("/api/dev-auto-login", async (IBlobStorageService blobStorage, IAuthService authService, HttpContext context) =>
+{
+    if (!app.Environment.IsDevelopment())
+    {
+        return Results.NotFound(); // Hide this endpoint in production
+    }
+
+    try
+    {
+        // Get the first admin user, or first user if no admin
+        var users = await blobStorage.GetUsersAsync();
+        var devUser = users.FirstOrDefault(u => u.IsAdmin) ?? users.FirstOrDefault();
+
+        if (devUser == null)
+        {
+            return Results.Problem("No users found in database");
+        }
+
+        var session = new Session
+        {
+            UserId = devUser.Id,
+            DisplayName = devUser.DisplayName,
+            IsAdmin = devUser.IsAdmin,
+            IssuedAt = DateTime.UtcNow,
+            ExpiresAt = DateTime.UtcNow.AddDays(7)
+        };
+
+        var sessionToken = authService.CreateSessionToken(session);
+
+        context.Response.Cookies.Append("AuthSession", sessionToken, new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = false, // Allow HTTP in development
+            SameSite = SameSiteMode.Lax, // More permissive in development
+            Expires = session.ExpiresAt
+        });
+
+        return Results.Ok(new { userId = session.UserId, displayName = session.DisplayName, isAdmin = session.IsAdmin, message = "Auto-logged in (Development Mode)" });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error in dev auto-login: {ex.Message}");
+    }
+}).ExcludeFromDescription(); // Hide from Swagger/OpenAPI if present
+
 app.MapGet("/api/session", (HttpContext context, IAuthService authService) =>
 {
     var cookie = context.Request.Cookies["AuthSession"];
@@ -482,7 +528,7 @@ app.MapPost("/api/investors", async (CreateInvestorRequest request, IBlobStorage
         ContactPhone = request.ContactPhone,
         Category = request.Category,
         Stage = request.Stage,
-        Status = request.Status ?? "Active",
+        Status = request.Status ?? string.Empty,
         Owner = request.Owner,
         CommitAmount = request.CommitAmount,
         Notes = request.Notes,

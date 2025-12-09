@@ -20,13 +20,14 @@ public class SessionMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        // Skip auth for login endpoints, magic link endpoints, test endpoints, health/heartbeat endpoints, and static files
+        // Skip auth for login endpoints, magic link endpoints, test endpoints, health/heartbeat endpoints, dev auto-login, and static files
         var path = context.Request.Path.Value?.ToLower() ?? "";
         if (path.StartsWith("/api/users") && context.Request.Method == "GET" ||
             path.StartsWith("/api/login") ||
             path.StartsWith("/api/request-magic-link") ||
             path.StartsWith("/api/validate-magic-link") ||
             path.StartsWith("/api/test-email") ||
+            path.StartsWith("/api/dev-auto-login") ||
             path == "/health" ||
             path == "/api/heartbeat" ||
             path == "/" || path.StartsWith("/raise-tracker.html") || path.StartsWith("/css/") || path.StartsWith("/js/"))

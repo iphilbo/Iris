@@ -7,9 +7,9 @@ public class Investor
     public string? MainContact { get; set; }
     public string? ContactEmail { get; set; }
     public string? ContactPhone { get; set; }
-    public string Category { get; set; } = string.Empty; // "existing" | "known" | "new"
+    public string Category { get; set; } = string.Empty; // "existing" | "known" | "new" | "Strategic" | "Financial"
     public string Stage { get; set; } = string.Empty; // "target" | "contacted" | "NDA" | "due_diligence" | "soft_commit" | "commit" | "closed" | "dead"
-    public string Status { get; set; } = "Active"; // "Active" | "Lost: code 1" | "Lost: Code 2"
+    public string Status { get; set; } = string.Empty;
     public string? Owner { get; set; } // User display name who owns this investor
     public decimal? CommitAmount { get; set; }
     public string? Notes { get; set; }
@@ -31,7 +31,7 @@ public class InvestorSummary
     public string Name { get; set; } = string.Empty;
     public string Stage { get; set; } = string.Empty;
     public string Category { get; set; } = string.Empty;
-    public string Status { get; set; } = "Active";
+    public string Status { get; set; } = string.Empty;
     public string? Owner { get; set; }
     public decimal? CommitAmount { get; set; }
     public DateTime? UpdatedAt { get; set; }
