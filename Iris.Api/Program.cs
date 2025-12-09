@@ -146,6 +146,22 @@ app.MapGet("/", async (HttpContext context) =>
 // Health check endpoint
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
+// Heartbeat endpoint - called by Azure Function to keep serverless instance warm
+app.MapGet("/api/heartbeat", async () =>
+{
+    try
+    {
+        _ = SysProc.SysLogItAsync("Heartbeat", "System");
+        return Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow });
+    }
+    catch (Exception ex)
+    {
+        // Log error but don't fail - heartbeat should be resilient
+        Console.WriteLine($"[HEARTBEAT ERROR] Failed to log heartbeat: {ex.Message}");
+        return Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow, warning = "Logging failed" });
+    }
+});
+
 // Auth endpoints
 app.MapGet("/api/users", async (IBlobStorageService blobStorage, IAuthService authService, HttpContext context) =>
 {
