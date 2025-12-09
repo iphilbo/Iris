@@ -266,6 +266,10 @@ app.MapGet("/api/validate-magic-link", async (string token, IAuthService authSer
             Expires = session.ExpiresAt
         });
 
+        // Log successful login to syslog
+        var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        _ = SysProc.SysLogItAsync($"User login successful: UserId={user.Id}, DisplayName={user.DisplayName}, IP={clientIp}", user.Id);
+
         // Redirect to the app (or return success)
         return Results.Redirect("/");
     }
@@ -314,6 +318,10 @@ app.MapGet("/api/dev-auto-login", async (IBlobStorageService blobStorage, IAuthS
             Expires = session.ExpiresAt
         });
 
+        // Log successful login to syslog
+        var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        _ = SysProc.SysLogItAsync($"User login successful (Dev Auto-Login): UserId={devUser.Id}, DisplayName={devUser.DisplayName}, IP={clientIp}", devUser.Id);
+
         return Results.Ok(new { userId = session.UserId, displayName = session.DisplayName, isAdmin = session.IsAdmin, message = "Auto-logged in (Development Mode)" });
     }
     catch (Exception ex)
@@ -337,6 +345,28 @@ app.MapGet("/api/session", (HttpContext context, IAuthService authService) =>
     }
 
     return Results.Ok(new { userId = session.UserId, displayName = session.DisplayName, isAdmin = session.IsAdmin });
+});
+
+// Log pageview (called on every page load for authenticated users)
+app.MapPost("/api/pageview", async (HttpContext context, IAuthService authService) =>
+{
+    var cookie = context.Request.Cookies["AuthSession"];
+    if (string.IsNullOrEmpty(cookie))
+    {
+        return Results.Unauthorized();
+    }
+
+    var session = authService.ValidateSessionToken(cookie);
+    if (session == null)
+    {
+        return Results.Unauthorized();
+    }
+
+    // Log pageview to syslog (fire-and-forget)
+    var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+    _ = SysProc.SysLogItAsync($"User pageview: UserId={session.UserId}, DisplayName={session.DisplayName}, IP={clientIp}", session.UserId);
+
+    return Results.Ok();
 });
 
 // Test email endpoint - for testing email configuration
@@ -496,6 +526,91 @@ app.MapDelete("/api/users/{id}", async (string id, IBlobStorageService blobStora
     await blobStorage.SaveUsersAsync(users);
 
     return Results.Ok();
+});
+
+// Get user login statistics (admin only)
+app.MapGet("/api/users/{id}/login-stats", async (string id, IAuthService authService, HttpContext context, IConfiguration configuration) =>
+{
+    var cookie = context.Request.Cookies["AuthSession"];
+    if (string.IsNullOrEmpty(cookie))
+    {
+        return Results.Unauthorized();
+    }
+
+    var session = authService.ValidateSessionToken(cookie);
+    if (session == null || !session.IsAdmin)
+    {
+        return Results.Unauthorized();
+    }
+
+    try
+    {
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrEmpty(connectionString))
+        {
+            return Results.Problem("Database connection not configured");
+        }
+
+        using var connection = new Microsoft.Data.SqlClient.SqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        // Get last login/pageview date
+        // Include both login and pageview entries
+        // Use case-insensitive comparison to handle any ID format variations
+        var lastLoginQuery = @"
+            SELECT TOP 1 LogTime
+            FROM SysLog
+            WHERE LOWER(LogUser) = LOWER(@userId)
+                AND (LogData LIKE @loginPattern OR LogData LIKE @pageviewPattern)
+            ORDER BY LogTime DESC";
+
+        DateTime? lastLogin = null;
+        using (var cmd = new Microsoft.Data.SqlClient.SqlCommand(lastLoginQuery, connection))
+        {
+            cmd.Parameters.AddWithValue("@userId", id);
+            cmd.Parameters.AddWithValue("@loginPattern", "User login successful%");
+            cmd.Parameters.AddWithValue("@pageviewPattern", "User pageview%");
+            var result = await cmd.ExecuteScalarAsync();
+            if (result != null && result != DBNull.Value)
+            {
+                lastLogin = (DateTime)result;
+            }
+        }
+
+        // Get login/pageview count for last 30 days
+        var thirtyDaysAgo = DateTime.UtcNow.AddDays(-30);
+        var loginCountQuery = @"
+            SELECT COUNT(*)
+            FROM SysLog
+            WHERE LOWER(LogUser) = LOWER(@userId)
+                AND (LogData LIKE @loginPattern OR LogData LIKE @pageviewPattern)
+                AND LogTime >= @thirtyDaysAgo";
+
+        int loginCount = 0;
+        using (var cmd = new Microsoft.Data.SqlClient.SqlCommand(loginCountQuery, connection))
+        {
+            cmd.Parameters.AddWithValue("@userId", id);
+            cmd.Parameters.AddWithValue("@loginPattern", "User login successful%");
+            cmd.Parameters.AddWithValue("@pageviewPattern", "User pageview%");
+            cmd.Parameters.AddWithValue("@thirtyDaysAgo", thirtyDaysAgo);
+            var result = await cmd.ExecuteScalarAsync();
+            if (result != null && result != DBNull.Value)
+            {
+                loginCount = Convert.ToInt32(result);
+            }
+        }
+
+        return Results.Ok(new
+        {
+            lastLogin = lastLogin,
+            loginCountLast30Days = loginCount
+        });
+    }
+    catch (Exception ex)
+    {
+        _ = SysProc.SysLogItAsync($"Error getting login stats for user {id}: {ex.Message} | Stack trace: {ex.StackTrace}", "System");
+        return Results.Problem("An error occurred while retrieving login statistics.");
+    }
 });
 
 // Investor endpoints

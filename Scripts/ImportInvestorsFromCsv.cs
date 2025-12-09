@@ -61,19 +61,7 @@ class ImportInvestorsFromCsv
             return;
         }
 
-        // TEST MODE: Import first 3 investors
-        var testCount = Math.Min(3, investors.Count);
-        Console.WriteLine($"*** TEST MODE: Importing first {testCount} investors ***\n");
-        for (int i = 0; i < testCount; i++)
-        {
-            var investor = investors[i];
-            Console.WriteLine($"{i + 1}. {investor.Company}");
-            Console.WriteLine($"   Investor Type: {investor.InvestorType}");
-            Console.WriteLine($"   Primary Investor Type: {investor.PrimaryInvestorType}");
-            Console.WriteLine($"   Contact: {investor.PrimaryContact}");
-            Console.WriteLine($"   Email: {investor.PrimaryContactEmail}");
-        }
-        Console.WriteLine();
+        Console.WriteLine($"Importing all {investors.Count} investors...\n");
 
         // Import to database
         try
@@ -84,9 +72,7 @@ class ImportInvestorsFromCsv
             int successCount = 0;
             int errorCount = 0;
 
-            // TEST MODE: Only process first 3 investors
-            var investorsToProcess = investors.Take(3).ToList();
-            foreach (var investor in investorsToProcess)
+            foreach (var investor in investors)
             {
                 try
                 {

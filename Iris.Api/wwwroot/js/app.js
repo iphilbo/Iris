@@ -149,6 +149,12 @@ function showApp() {
         } else {
             manageUsersButton.classList.add('hidden');
         }
+
+        // Log pageview (fire-and-forget, don't wait for response)
+        fetch(`${API_BASE}/pageview`, { method: 'POST' }).catch(err => {
+            // Silently ignore errors - pageview logging shouldn't block the UI
+            console.debug('Pageview logging failed:', err);
+        });
     }
 }
 
@@ -1096,9 +1102,53 @@ async function loadUsersForManagement() {
         const usersList = document.getElementById('usersList');
         usersList.innerHTML = '';
 
-        for (const user of users) {
+        // Load login stats for each user
+        const usersWithStats = await Promise.all(users.map(async (user) => {
+            try {
+                const statsResponse = await fetch(`${API_BASE}/users/${encodeURIComponent(user.id)}/login-stats`);
+                if (statsResponse.ok) {
+                    const stats = await statsResponse.json();
+                    return { ...user, ...stats };
+                } else {
+                    // Log non-OK responses for debugging
+                    console.warn(`Failed to load login stats for user ${user.id}: ${statsResponse.status} ${statsResponse.statusText}`);
+                }
+            } catch (error) {
+                console.error(`Failed to load login stats for user ${user.id}:`, error);
+            }
+            // Default to null/0 if stats can't be loaded (user may not have logged in yet, or logged in before logging was added)
+            return { ...user, lastLogin: null, loginCountLast30Days: 0 };
+        }));
+
+        for (const user of usersWithStats) {
             const userCard = document.createElement('div');
             userCard.className = 'user-card';
+
+            // Format last login date
+            let lastLoginText = 'Never';
+            if (user.lastLogin) {
+                const lastLoginDate = new Date(user.lastLogin);
+                const now = new Date();
+
+                // Compare dates at day level (ignore time) to avoid timezone issues
+                const lastLoginDay = new Date(lastLoginDate.getFullYear(), lastLoginDate.getMonth(), lastLoginDate.getDate());
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                const diffDays = Math.floor((today - lastLoginDay) / (1000 * 60 * 60 * 24));
+
+                if (diffDays === 0) {
+                    lastLoginText = 'Today';
+                } else if (diffDays === 1) {
+                    lastLoginText = 'Yesterday';
+                } else if (diffDays < 7 && diffDays > 0) {
+                    lastLoginText = `${diffDays} days ago`;
+                } else if (diffDays < 0) {
+                    // If negative, it's today (timezone issue) or in the future (shouldn't happen)
+                    lastLoginText = 'Today';
+                } else {
+                    lastLoginText = lastLoginDate.toLocaleDateString();
+                }
+            }
+
             userCard.innerHTML = `
                 <div class="user-card-header">
                     <div>
@@ -1108,6 +1158,16 @@ async function loadUsersForManagement() {
                     <div class="user-card-actions">
                         <button class="icon-btn" title="Edit User" aria-label="Edit User" onclick="editUser('${user.id}')">✏️</button>
                         <button class="icon-btn" title="Delete User" aria-label="Delete User" onclick="deleteUser('${user.id}')">🗑️</button>
+                    </div>
+                </div>
+                <div class="user-card-stats">
+                    <div class="user-stat">
+                        <span class="user-stat-label">Last Login:</span>
+                        <span class="user-stat-value">${lastLoginText}</span>
+                    </div>
+                    <div class="user-stat">
+                        <span class="user-stat-label">Logins (30 days):</span>
+                        <span class="user-stat-value">${user.loginCountLast30Days || 0}</span>
                     </div>
                 </div>
             `;

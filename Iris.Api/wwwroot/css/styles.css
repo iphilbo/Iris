@@ -1026,3 +1026,29 @@ main {
     display: flex;
     gap: 0.5rem;
 }
+
+.user-card-stats {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.user-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.user-stat-label {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.user-stat-value {
+    font-size: 0.95rem;
+    color: var(--text-primary);
+    font-weight: 600;
+}
