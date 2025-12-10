@@ -6,41 +6,49 @@ User visits `/`.
 
 If no valid session cookie:
 
-Show a login screen with a list of user display names loaded from the backend:
+Show a login screen with an email input field.
 
-e.g., "Alice", "Bob", "Carol".
+User enters their email address and clicks "Send Magic Link".
 
-User clicks their name, sees a password field, enters their password, and submits.
-
-## Login Request
+## Magic Link Request
 
 Frontend sends:
 
-- `userId` (or username)
-- `password` (plaintext, over HTTPS)
+- `email` (user's email address)
 
-to `POST /api/login`.
+to `POST /api/request-magic-link`.
 
-## Login Handling (Backend)
+## Magic Link Handling (Backend)
 
 Backend steps:
 
-1. Load `users.json` and find matching user by `userId` or `username`.
-2. Hash the supplied password with the same algorithm and parameters used to create `passwordHash`.
-3. Compare computed hash with stored `passwordHash`.
+1. Look up user by email address in the database.
+2. If user exists, generate a secure, time-limited token (15 minutes expiry).
+3. Send magic link email via Azure Communication Services.
+4. Always return success message (don't reveal if user exists for security).
 
-If match:
+## Magic Link Validation
 
-- Create a session object:
-  - `userId`
-  - `issuedAt` (UTC)
-  - `expiresAt` = issuedAt + 7 days
-- Serialize and sign it (e.g., JWT or opaque token with HMAC).
-- Set it as an HTTP-only, Secure cookie (e.g., `AuthSession`).
+User clicks the magic link in their email, which navigates to:
 
-If not match:
+`GET /api/validate-magic-link?token={token}`
 
-- Return HTTP 401/403 with generic error message ("Invalid credentials").
+Backend steps:
+
+1. Validate the token (check expiry and usage).
+2. If valid:
+   - Create a session object:
+     - `userId`
+     - `displayName`
+     - `isAdmin`
+     - `issuedAt` (UTC)
+     - `expiresAt` = issuedAt + 7 days
+   - Serialize and sign it using HMAC-SHA256.
+   - Set it as an HTTP-only, Secure cookie (e.g., `AuthSession`).
+   - Log login event to SysLog.
+   - Redirect to the main application.
+3. If invalid:
+   - Return HTTP 400 with error message ("Invalid or expired magic link").
 
 ## Session Validation and Sliding Expiry
 

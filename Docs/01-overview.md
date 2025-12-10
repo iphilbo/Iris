@@ -1,23 +1,25 @@
 # Iris - RaiseTracker Feature – Overview
 
 This document describes the design for the **RaiseTracker** feature within the **Iris** project:
-- File-based storage using many JSON files + an index
-- Simple 7-user password authentication
+- SQL Server database with Entity Framework Core
+- Magic link email authentication
 - 7-day sliding session cookies
 - Minimal REST API to support the HTML front-end
+- Login and pageview tracking
 
-Intended to be used as a reference/spec in Cursor while you implement.
+Intended to be used as a reference/spec for the application.
 
 ## System Overview
 
-- Small internal web app (7 users).
-- Purpose: Track investors and related tasks for Series A.
+- Small internal web app for tracking Series A investors.
+- Purpose: Track investors and related tasks for Series A fundraising.
 - Project: **Iris** - Feature: **RaiseTracker**
-- Front-end: Single HTML/JS page (existing "vibe-coded" page, refactored).
-- Backend: Thin HTTP API (e.g., .NET 8 minimal API, but framework-agnostic).
-- Storage: Azure Blob Storage with JSON files (no database).
+- Front-end: Single HTML/JS page with modern UI (dark/light mode, responsive design).
+- Backend: .NET 8 minimal API.
+- Storage: SQL Server database (Azure SQL Database) with Entity Framework Core.
 - Auth:
-  - User picks their name and enters a per-user password.
-  - Passwords stored only on server as hashes.
+  - User enters their email address to receive a magic link.
+  - No passwords stored - authentication via time-limited email tokens.
   - On success, a session cookie is issued with 7-day sliding expiry.
+  - Login and pageview events are logged to SysLog for tracking.
 - Hosting: Azure App Service (HTTPs only).

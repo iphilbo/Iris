@@ -6,32 +6,47 @@ A simple web application for tracking Series A investors and related tasks. Buil
 
 ## Features
 
-- **Authentication**: Simple password-based auth with 7-day sliding session cookies
-- **Investor Management**: Track investors with contact info, stage, category, and commit amounts
+- **Authentication**: Magic link email authentication with 7-day sliding session cookies
+- **Investor Management**: Track investors with contact info, stage, category, status, owner, and commit amounts
 - **Task Management**: Add and manage tasks per investor
+- **User Management**: Admin interface for managing users and viewing login statistics
+- **Login Tracking**: Automatic logging of logins and pageviews to syslog
 - **Dark/Light Mode**: Toggle between themes with persistent preference
 - **Mobile Responsive**: Works on desktop, tablet, and mobile devices
-- **Azure Blob Storage**: File-based storage using JSON files in Azure Blob Storage
+- **SQL Server Database**: Entity Framework Core with Azure SQL Database
 
 ## Prerequisites
 
 - .NET 8 SDK
-- Azure Storage Account with a blob container named `seriesa-data`
+- Azure SQL Database (or SQL Server for local development)
+- Azure Communication Services (for email/magic link functionality)
 
 ## Setup
 
-1. **Configure Azure Storage Connection String**
+1. **Configure Database Connection String**
 
    Edit `Iris.Api/appsettings.json` and update the connection string:
    ```json
    {
      "ConnectionStrings": {
-       "AzureStorage": "DefaultEndpointsProtocol=https;AccountName=YOUR_ACCOUNT;AccountKey=YOUR_KEY;EndpointSuffix=core.windows.net"
+       "DefaultConnection": "Server=YOUR_SERVER;Database=YOUR_DB;User Id=YOUR_USER;Password=YOUR_PASSWORD;"
      }
    }
    ```
 
-2. **Configure Session Signing Key**
+2. **Configure Email Service (for Magic Links)**
+
+   Add Azure Communication Services connection string:
+   ```json
+   {
+     "Email": {
+       "ConnectionString": "endpoint=https://YOUR_RESOURCE.communication.azure.com/;accesskey=YOUR_KEY",
+       "FromEmail": "DoNotReply@yourdomain.com"
+     }
+   }
+   ```
+
+3. **Configure Session Signing Key**
 
    Update the session signing key in `appsettings.json`:
    ```json
@@ -40,7 +55,14 @@ A simple web application for tracking Series A investors and related tasks. Buil
    }
    ```
 
-3. **Run the Application**
+4. **Run Database Migrations**
+
+   The database schema will be created automatically on first run, or you can run the schema script manually:
+   ```sql
+   -- See Scripts/CreateDatabaseSchema.sql
+   ```
+
+5. **Run the Application**
 
    ```bash
    cd Iris.Api
@@ -48,19 +70,14 @@ A simple web application for tracking Series A investors and related tasks. Buil
    ```
 
    The application will:
-   - Create the `seriesa-data` container if it doesn't exist
-   - Initialize `users.json` with the default user (Phil / General123)
-   - Initialize `index.json` as an empty array
+   - Connect to the SQL Server database
    - Start the web server (typically at http://localhost:5253)
 
-4. **Access the Application**
+6. **Access the Application**
 
    Open your browser to `http://localhost:5253`
-
-## Default User
-
-- **Username**: phil
-- **Password**: General123
+   - Enter your email address to receive a magic link
+   - Click the link in the email to log in
 
 ## Project Structure
 
@@ -81,10 +98,12 @@ Iris/
 ## API Endpoints
 
 ### Auth
-- `GET /api/users` - Get list of users for login
-- `POST /api/login` - Login with userId and password
+- `GET /api/users` - Get list of users (admin only for full details)
+- `POST /api/request-magic-link` - Request magic link email
+- `GET /api/validate-magic-link` - Validate magic link token and create session
 - `GET /api/session` - Check current session
 - `POST /api/logout` - Logout
+- `POST /api/pageview` - Log pageview (called automatically on page load)
 
 ### Investors
 - `GET /api/investors` - Get investor index
@@ -98,21 +117,29 @@ Iris/
 - `PUT /api/investors/{id}/tasks/{taskId}` - Update task
 - `DELETE /api/investors/{id}/tasks/{taskId}` - Delete task
 
-## Storage Structure
+### User Management (Admin Only)
+- `POST /api/users` - Create new user
+- `PUT /api/users/{id}` - Update user
+- `DELETE /api/users/{id}` - Delete user
+- `GET /api/users/{id}/login-stats` - Get user login statistics
 
-The application uses Azure Blob Storage with the following structure:
+## Database Structure
 
-- `index.json` - Lightweight list of investors for quick loading
-- `investors/{id}.json` - Full investor records with tasks
-- `users.json` - User accounts and password hashes (server-only)
+The application uses SQL Server with Entity Framework Core. Main tables:
+
+- `Users` - User accounts and authentication
+- `Investors` - Investor records with contact info and metadata
+- `InvestorTasks` - Tasks associated with investors
+- `SysLog` - System logging (login events, pageviews, errors)
 
 ## Security Features
 
-- Password hashing using BCrypt
+- Magic link email authentication (no passwords stored)
 - HTTP-only, Secure session cookies
 - Rate limiting on login attempts (5 attempts per 15 minutes per IP)
-- ETag-based concurrency control for data integrity
+- RowVersion-based concurrency control for data integrity
 - HTTPS enforcement (configure in Azure App Service)
+- Admin-only user management endpoints
 
 ## Development Notes
 
@@ -120,10 +147,12 @@ The application uses Azure Blob Storage with the following structure:
 - Sessions stored in-memory with sliding 7-day expiry
 - Rate limiting uses in-memory dictionary (consider Redis for scale)
 - CORS is permissive in development, restricted in production
+- Login and pageview events are logged to SysLog table
+- Admin users can view login statistics for all users
 
 ## Deployment
 
-See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions on deploying to Azure App Service using GitHub Actions.
+See [Docs/10-deployment.md](Docs/10-deployment.md) for detailed instructions on deploying to Azure App Service using GitHub Actions.
 
 Quick steps:
 1. Create Azure App Service and required resources

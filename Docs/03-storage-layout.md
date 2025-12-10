@@ -1,15 +1,27 @@
-# Storage Layout (Azure Blob, many JSON files)
+# Storage Layout (SQL Server Database)
 
-Use a single blob container, e.g. `seriesa-data`.
+The application uses SQL Server (Azure SQL Database) with Entity Framework Core for data persistence.
 
-## Recommended Structure
+## Database Tables
 
-- `index.json`
-  - Lightweight list of investors for quick loading.
-- `investors/{investorId}.json`
-  - Full investor object including tasks.
-- `users.json`
-  - Auth users and password hashes (never exposed to clients).
+### Users
+- User accounts and authentication information
+- Stores email (username), display name, and admin status
+- No password hashes (uses magic link authentication)
+
+### Investors
+- Full investor records with contact information
+- Includes stage, category, status, owner, and commit amount
+- RowVersion column for optimistic concurrency control
+
+### InvestorTasks
+- Tasks associated with investors
+- Foreign key relationship to Investors table
+
+### SysLog
+- System logging table
+- Logs login events, pageviews, and errors
+- Used for user activity tracking and debugging
 
 ## `index.json` Structure
 
