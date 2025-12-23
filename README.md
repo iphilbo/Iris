@@ -21,6 +21,10 @@ A simple web application for tracking Series A investors and related tasks. Buil
 - Azure SQL Database (or SQL Server for local development)
 - Azure Communication Services (for email/magic link functionality)
 
+## Quick Start
+
+**New to the project?** See [Docs/00-setup-guide.md](Docs/00-setup-guide.md) for detailed setup instructions on a new machine.
+
 ## Setup
 
 1. **Configure Database Connection String**
